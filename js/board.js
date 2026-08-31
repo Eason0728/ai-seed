@@ -327,6 +327,20 @@
     });
   }
 
+  // Eason 專用：學員忘記密碼時把他還原成 0000
+  function resetPass(pid, name){
+    if(!admin) return;
+    ask({title:'把「'+name+'」的密碼重設？',
+         desc:'他的密碼會變回預設的 <b>0000</b>。跟他講一聲，叫他進去之後自己再改一組。',
+         ok:'重設', danger:true}, function(v){
+      if(!v) return;
+      api('resetPass',{target:pid}).then(function(d){
+        S={people:d.people||[], rev:(S.rev||0)+1}; migrate(); render(); openSheet(pid);
+        say('已經重設', esc(name)+' 現在的密碼是 <b>0000</b>。');
+      }).catch(function(e){ say('沒有成功',(e&&e.error)||'再試一次'); });
+    });
+  }
+
   function changePass(err){
     if(!me) return;
     ask({title:'改密碼', desc:'設一組只有你知道的<b>四位數字</b>。改完下次就用新的。',
@@ -519,6 +533,7 @@
       '<div class="sfoot">'+
         '<button class="act" id="doneBtn">完成並存檔</button>'+
         (me && me.code===p.id ? '<button class="act ghost" id="pwBtn">改密碼</button>' : '')+
+        (admin ? '<button class="act ghost" id="rsBtn">重設密碼為 0000</button>' : '')+
         '<span class="note" id="sMsg"></span>'+
 
       '</div></div></div>';
@@ -544,6 +559,8 @@
     document.getElementById('closeX').addEventListener('click', closeSheet);
     document.getElementById('doneBtn').addEventListener('click', onDone);
     var pw=document.getElementById('pwBtn'); if(pw) pw.addEventListener('click', function(){ changePass(); });
+    var rs=document.getElementById('rsBtn');
+    if(rs) rs.addEventListener('click', function(){ resetPass(p.id, p.name||p.id); });
     document.getElementById('back').addEventListener('mousedown', function(e){
       if(e.target && e.target.id==='back') closeSheet();
     });

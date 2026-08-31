@@ -95,6 +95,7 @@ function doPost(e) {
     if (a === 'saveItem')   return respond_(handleSaveItem_(payload));
     if (a === 'login')      return respond_(handleLogin_(payload));
     if (a === 'changePass') return respond_(handleChangePass_(payload));
+    if (a === 'resetPass')  return respond_(handleResetPass_(payload));
     if (a === 'submit')     return respond_(handleSubmit_(payload));
     if (a === 'withdraw')   return respond_(handleWithdraw_(payload));
     if (a === 'adminAuth')  return respond_(handleAdminAuth_(payload));
@@ -255,6 +256,16 @@ function handleSaveItem_(payload) {
 }
 
 /** 學員送出審核——這一筆進交件紀錄，就是 10/07 判準①的憑據 */
+// Eason 專用：把某個人的密碼清空，等於還原成預設的 0000
+function handleResetPass_(payload) {
+  if (!adminOk_(payload)) return { ok: false, error: '通行碼不對' };
+  var t = person_(payload.target);
+  if (!t) return { ok: false, error: '找不到這個代號' };
+  sheet_(SH_PEOPLE).getRange(t.row, 3).setValue('');
+  log_(t.code, t.name, '', '重設密碼', 'Eason 重設為 0000');
+  return handleGetAll_();
+}
+
 function handleSubmit_(payload) {
   var a = auth_(payload); if (!a.ok) return a;
   var row = itemRow_(payload.itemId);
