@@ -279,7 +279,7 @@
 
   function render(){
     document.getElementById('root').innerHTML=
-      '<header>'+BRANDS+'<span class="kick">鼎兆元 · AI 種子計畫</span><h1>學習看板</h1>'+
+      '<header>'+BRANDS+'<span class="kick">鼎兆元 · AI 種子計劃</span><h1>學習看板</h1>'+
       '<p class="sub">四堂課（9/3–9/24）＋ 10/07 成果分享。每張卡片<strong>只有本人用自己的密碼才打得開</strong>，別人看得到的就是卡片上這些。一個人可以有不只一件事。不排名、不排序，順序照名冊。</p></header>'+
       '<div id="roBox"></div>'+
       totalHtml()+ pendHtml() +
