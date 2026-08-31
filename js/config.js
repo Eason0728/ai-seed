@@ -2,4 +2,4 @@
    部署方式：Apps Script 編輯器 →「部署／新增部署作業」→ 類型「網頁應用程式」
              執行身分＝我，誰可以存取＝**任何人**（這樣學員才不用帳號）
    換版本重新部署時網址不變（選「管理部署作業／編輯」而不是新增）。*/
-window.AI_SEED_API = '';
+window.AI_SEED_API = 'https://script.google.com/macros/s/AKfycbyu11xoBEyDTgr-1VGKPDim5zBaJB-10MfM2-ok20S7wW0i3bVFLOybVYGDt0sdVmou/exec';
