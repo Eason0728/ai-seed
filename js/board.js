@@ -125,6 +125,7 @@
     blocker:'', noBlocker:false, needData:'',
     ana:{b:'',t:'',w:'',n:''}, review:'draft', rejectNote:'', rejectCount:0}; }
   function anaFilled(it){
+    if(it.pub) return it.anaN||0;
     var a=it.ana||{}; var n=0;
     ANA.forEach(function(x){ if(String(a[x[0]]||'').trim()) n++; });
     return n;
@@ -149,7 +150,11 @@
     return {partial:false, b:b, a:a, w:w, before:Math.round(before), after:Math.round(after),
       saved:Math.max(Math.round(before)-Math.round(after),0)};
   }
-  function itemSaved(it){ var c=calc(it); return (c&&!c.partial)?c.saved:null; }
+  // it.pub＝別人的件，後端只給算好的 saved，沒給原始分鐘數
+  function itemSaved(it){
+    if(it.pub) return (typeof it.saved==='number')?it.saved:null;
+    var c=calc(it); return (c&&!c.partial)?c.saved:null;
+  }
   function isApproved(it){ return it.review==='approved'; }
   // 只有審核通過的才計入數字
   function personSaved(p){
@@ -275,11 +280,11 @@
   function render(){
     document.getElementById('root').innerHTML=
       '<header>'+BRANDS+'<span class="kick">鼎兆元 · AI 種子計畫</span><h1>學習看板</h1>'+
-      '<p class="sub">四堂課（9/3–9/24）＋ 10/07 成果分享。<strong>點任何一個人</strong>看他的算式與細項。一個人可以有不只一件事。不排名、不排序，順序照名冊。</p></header>'+
+      '<p class="sub">四堂課（9/3–9/24）＋ 10/07 成果分享。每張卡片<strong>只有本人用自己的密碼才打得開</strong>，別人看得到的就是卡片上這些。一個人可以有不只一件事。不排名、不排序，順序照名冊。</p></header>'+
       '<div id="roBox"></div>'+
       totalHtml()+ pendHtml() +
       '<div class="sechd"><h2>每個人每月省下</h2><span class="hint">'+
-        (S.people.length?'點卡片打開細項與算式，改完按「完成並存檔」':'')+'</span></div>'+
+        (S.people.length?'點自己的卡片，用密碼進去填，改完按「完成並存檔」':'')+'</span></div>'+
       peopleHtml()+
       needsHtml()+
       '<div class="bar">'+
@@ -314,10 +319,10 @@
   function askPass(pid, err){
     var p=find(pid); if(!p) return;
     ask({title:esc(p.name||pid),
-         desc:'要填自己這一張，輸入你的四位數密碼。<b>第一次用的是預設密碼 0000</b>，'+
-              '進去之後記得按「改密碼」換掉。<br>只想看看別人的進度就按「取消」。',
+         desc:'這一張只有本人打得開。輸入<b>'+esc(p.name||pid)+'</b>的四位數密碼。<br>'+
+              '如果這是你自己的卡片，<b>第一次用的是預設密碼 0000</b>，進去之後記得按「改密碼」換掉。',
          input:'', ph:'四位數密碼', ok:'進入', err:err||''}, function(v){
-      if(v===null){ openSheet(pid); return; }
+      if(v===null) return;   // 取消就什麼都不開
       var pass=String(v).trim();
       api('login',{code:pid, pass:pass}).then(function(d){
         me={code:pid, pass:pass}; admin=null; reviewMode=false;
@@ -542,21 +547,16 @@
 
   function openSheet(id, focusItemId){
     var p=find(id); if(!p) return;
+    var mine = admin || (me && me.code===p.id);
+    if(!mine){ askPass(id, ''); return; }   // 非本人一律擋在門外
     openId=id;
     document.getElementById('layer').innerHTML=sheetHtml(p);
-    var mine = admin || (me && me.code===p.id);
-    if(!mine){
-      document.querySelectorAll('#layer input,#layer select,#layer textarea,#layer .sess button,#layer .del,#layer .idel,#layer .additem,#layer .mini,#layer .act')
-        .forEach(function(x){ x.disabled=true; });
-      var sm=document.getElementById('sMsg'); if(sm) sm.textContent='唯讀模式，改不了';
-    } else {
-      // 送審中／已通過的件，學員不能改（審核模式除外）
-      (p.items||[]).forEach(function(it){
-        if(!locked(it)) return;
-        var box=document.getElementById('it-'+it.id);
-        if(box) box.querySelectorAll('input,select,textarea').forEach(function(x){ x.disabled=true; });
-      });
-    }
+    // 送審中／已通過的件，學員不能改（審核模式除外）
+    (p.items||[]).forEach(function(it){
+      if(!locked(it)) return;
+      var box=document.getElementById('it-'+it.id);
+      if(box) box.querySelectorAll('input,select,textarea').forEach(function(x){ x.disabled=true; });
+    });
     document.getElementById('closeX').addEventListener('click', closeSheet);
     document.getElementById('doneBtn').addEventListener('click', onDone);
     var pw=document.getElementById('pwBtn'); if(pw) pw.addEventListener('click', function(){ changePass(); });
@@ -676,7 +676,7 @@
     if(t.hasAttribute('data-open')){
       var pid=t.getAttribute('data-open');
       if(admin || (me && me.code===pid)) openSheet(pid);
-      else askPass(pid, '');
+      else askPass(pid, '');   // 不是自己的卡片，沒有密碼就打不開
     }
     else if(t.hasAttribute('data-torv')){ enterReview(); }
     else if(t.hasAttribute('data-sess')){
@@ -801,7 +801,7 @@
     var box=document.getElementById('roBox');
     if(box) box.innerHTML='<div class="ro"><strong>要填自己那一張，直接點你自己的卡片。</strong><br>'+
       '會跳出來問密碼——<strong>第一次用的是預設的 0000</strong>，進去之後按「改密碼」換掉。<br>'+
-      '別人的卡片點開只能看，改不了。</div>';
+      '<strong>別人的卡片打不開</strong>，要他本人的密碼才進得去。</div>';
   }
 
   window.addEventListener('beforeunload', function(e){ if(dirty){ e.preventDefault(); e.returnValue=''; } });

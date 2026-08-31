@@ -78,7 +78,7 @@ function rows_(name) {
 /* ─────────── 入口 ─────────── */
 
 function doGet(e) {
-  return respond_(handleGetAll_());
+  return respond_(handleGetAll_(null, false));
 }
 
 function doPost(e) {
@@ -91,7 +91,7 @@ function doPost(e) {
   try { lock.waitLock(20000); } catch (err) { return respond_({ ok: false, error: '有人正在存檔，再按一次' }); }
   try {
     var a = payload.action;
-    if (a === 'getAll')     return respond_(handleGetAll_());
+    if (a === 'getAll')     { var v = viewerOf_(payload); return respond_(handleGetAll_(v.code, v.admin)); }
     if (a === 'saveItem')   return respond_(handleSaveItem_(payload));
     if (a === 'login')      return respond_(handleLogin_(payload));
     if (a === 'changePass') return respond_(handleChangePass_(payload));
@@ -112,7 +112,39 @@ function respond_(obj) {
 
 /* ─────────── 讀 ─────────── */
 
-function handleGetAll_() {
+var WPM_ = 4.33;
+
+/** 前端 num() 的同款判斷，兩邊要一致 */
+function n_(v) { var x = parseFloat(v); return (isFinite(x) && x >= 0) ? x : null; }
+
+/** 別人看得到的那一份——只留看板格子會畫出來的欄位。
+ *  卡點、分析四格、退回原因、最近用、四標準、原始分鐘數一律不送出去。 */
+function pubItem_(it) {
+  var b = n_(it.beforeMin), w = n_(it.perWeek), a = n_(it.afterMin);
+  var saved = null;
+  if (b !== null && w !== null && a !== null) {
+    saved = Math.round(b * w * WPM_) - Math.round(a * w * WPM_);
+    if (saved < 0) saved = 0;
+  }
+  var an = 0, av = it.ana || {};
+  ['b', 't', 'w', 'n'].forEach(function (k) { if (String(av[k] || '').trim()) an++; });
+  return {
+    pub: true, id: it.id, topic: it.topic, status: it.status,
+    review: it.review, needData: it.needData, saved: saved, anaN: an
+  };
+}
+
+/** payload 是誰？回 {code, admin} —— code 為 null 代表沒登入 */
+function viewerOf_(payload) {
+  if (adminOk_(payload)) return { code: null, admin: true };
+  if (payload && payload.code) {
+    var a = auth_(payload);
+    if (a.ok) return { code: a.person.code, admin: false };
+  }
+  return { code: null, admin: false };
+}
+
+function handleGetAll_(viewerCode, isAdmin) {
   var people = rows_(SH_PEOPLE).filter(function (p) { return String(p['代號']).trim(); });
   var items  = rows_(SH_ITEMS).filter(function (i) { return String(i['件ID']).trim(); });
   var byCode = {};
@@ -141,6 +173,12 @@ function handleGetAll_() {
   });
   var list = people.map(function (p) { return byCode[p['代號']]; });
   list.forEach(function (p) { if (!p.items.length) p.items.push(blankItem_(p.id)); });
+  if (!isAdmin) {
+    list.forEach(function (p) {
+      if (p.id === viewerCode) return;              // 自己那一張照原樣
+      p.items = p.items.map(pubItem_);
+    });
+  }
   return { ok: true, people: list };
 }
 
@@ -194,7 +232,7 @@ function handleChangePass_(payload) {
   if (np === DEFAULT_PASS) return { ok: false, error: '不能設成預設的 0000，換一組' };
   sheet_(SH_PEOPLE).getRange(a.person.row, 3).setValue(np);
   log_(a.person.code, a.person.name, '', '改密碼', '');
-  var r = handleGetAll_(); r.newPass = np; return r;
+  var r = handleGetAll_(a.person.code, false); r.newPass = np; return r;
 }
 
 function itemRow_(itemId) {
@@ -231,7 +269,7 @@ function log_(code, name, itemId, action, note) {
 /** 只驗身分，不動資料——點卡片時用 */
 function handleLogin_(payload) {
   var a = auth_(payload); if (!a.ok) return a;
-  var r = handleGetAll_();
+  var r = handleGetAll_(a.person.code, false);
   r.isDefault = !!a.person.isDefault;
   return r;
 }
@@ -252,7 +290,7 @@ function handleSaveItem_(payload) {
   } else { it.review = 'draft'; it.rejectNote = ''; it.rejectCount = 0; }
   writeItem_(a.person.code, it);
   log_(a.person.code, a.person.name, it.id, '存檔', str_(it.topic));
-  return handleGetAll_();
+  return handleGetAll_(a.person.code, false);
 }
 
 /** 學員送出審核——這一筆進交件紀錄，就是 10/07 判準①的憑據 */
@@ -263,7 +301,7 @@ function handleResetPass_(payload) {
   if (!t) return { ok: false, error: '找不到這個代號' };
   sheet_(SH_PEOPLE).getRange(t.row, 3).setValue('');
   log_(t.code, t.name, '', '重設密碼', 'Eason 重設為 0000');
-  return handleGetAll_();
+  return handleGetAll_(null, true);
 }
 
 function handleSubmit_(payload) {
@@ -278,7 +316,7 @@ function handleSubmit_(payload) {
   sh.getRange(row, 21).setValue('');          // 退回原因
   sh.getRange(row, 23).setValue(new Date());
   log_(a.person.code, a.person.name, payload.itemId, '送出審核', topic);
-  return handleGetAll_();
+  return handleGetAll_(a.person.code, false);
 }
 
 function handleWithdraw_(payload) {
@@ -289,7 +327,7 @@ function handleWithdraw_(payload) {
   sheet_(SH_ITEMS).getRange(row, 20).setValue('draft');
   sheet_(SH_ITEMS).getRange(row, 23).setValue(new Date());
   log_(a.person.code, a.person.name, payload.itemId, '撤回修改', '');
-  return handleGetAll_();
+  return handleGetAll_(a.person.code, false);
 }
 
 /* ─────────── Eason 的審核 ─────────── */
@@ -326,7 +364,7 @@ function handleReview_(payload) {
     log_(code, p ? p.name : '', payload.itemId, '收回通過', '');
   } else return { ok: false, error: '不支援的判定' };
   sh.getRange(row, 23).setValue(new Date());
-  return handleGetAll_();
+  return handleGetAll_(null, true);
 }
 
 function handleSetSess_(payload) {
@@ -340,5 +378,5 @@ function handleSetSess_(payload) {
   var now = !!sh.getRange(p.row, col).getValue();
   sh.getRange(p.row, col).setValue(!now);
   log_(p.code, p.name, '', '勾進度', P_HEAD[col - 1] + (now ? ' 取消' : ' 打勾'));
-  return handleGetAll_();
+  return handleGetAll_(null, true);
 }
