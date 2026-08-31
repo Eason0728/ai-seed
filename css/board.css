@@ -40,8 +40,9 @@
 
 *{box-sizing:border-box}
 /* 看板要一目瞭然：把 rem 的基準從 16 拉到 18，全站等比放大 */
-html{font-size:18px}
-@media (max-width:22rem){ html{font-size:17px} }
+/* 用百分比不用固定 px——把使用者自己設的瀏覽器字級一起放大，而不是蓋掉 */
+html{font-size:112.5%}
+@media (max-width:22rem){ html{font-size:106%} }
 body{margin:0; background:var(--ground); color:var(--ink);
   font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
   font-size:1rem; line-height:1.7; -webkit-font-smoothing:antialiased}
