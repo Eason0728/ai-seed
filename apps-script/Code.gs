@@ -93,6 +93,8 @@ function doPost(e) {
     var a = payload.action;
     if (a === 'getAll')     return respond_(handleGetAll_());
     if (a === 'saveItem')   return respond_(handleSaveItem_(payload));
+    if (a === 'login')      return respond_(handleLogin_(payload));
+    if (a === 'changePass') return respond_(handleChangePass_(payload));
     if (a === 'submit')     return respond_(handleSubmit_(payload));
     if (a === 'withdraw')   return respond_(handleWithdraw_(payload));
     if (a === 'adminAuth')  return respond_(handleAdminAuth_(payload));
@@ -170,13 +172,28 @@ function person_(code) {
   return null;
 }
 
-/** 學員身分：代號 ＋ 通行碼。通行碼留空代表這個人還沒設，第一次填就當作對。 */
+var DEFAULT_PASS = '0000';
+
+/** 學員身分：代號 ＋ 四位數密碼。表格留空一律當作預設 0000。 */
 function auth_(payload) {
   var p = person_(payload.code);
   if (!p) return { ok: false, error: '找不到這個代號' };
-  if (p.pass && p.pass !== String(payload.pass || '').trim())
-    return { ok: false, error: '通行碼不對' };
+  var want = p.pass || DEFAULT_PASS;
+  if (want !== String(payload.pass || '').trim())
+    return { ok: false, error: '密碼不對' };
+  p.isDefault = (want === DEFAULT_PASS);
   return { ok: true, person: p };
+}
+
+/** 學員改自己的密碼：四位數字 */
+function handleChangePass_(payload) {
+  var a = auth_(payload); if (!a.ok) return a;
+  var np = String(payload.newPass || '').trim();
+  if (!/^[0-9]{4}$/.test(np)) return { ok: false, error: '密碼要剛好四位數字' };
+  if (np === DEFAULT_PASS) return { ok: false, error: '不能設成預設的 0000，換一組' };
+  sheet_(SH_PEOPLE).getRange(a.person.row, 3).setValue(np);
+  log_(a.person.code, a.person.name, '', '改密碼', '');
+  var r = handleGetAll_(); r.newPass = np; return r;
 }
 
 function itemRow_(itemId) {
@@ -208,6 +225,14 @@ function writeItem_(code, it) {
 
 function log_(code, name, itemId, action, note) {
   sheet_(SH_LOG).appendRow([new Date(), code, name, itemId || '', action, note || '']);
+}
+
+/** 只驗身分，不動資料——點卡片時用 */
+function handleLogin_(payload) {
+  var a = auth_(payload); if (!a.ok) return a;
+  var r = handleGetAll_();
+  r.isDefault = !!a.person.isDefault;
+  return r;
 }
 
 /** 學員存自己那一件（不改審核狀態） */

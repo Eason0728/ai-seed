@@ -58,3 +58,15 @@ function issuePasscodes() {
   Logger.log('代號　姓名　通行碼\n' + out.join('\n'));
   return out.join('\n');
 }
+
+/** 把所有人的密碼重設成預設 0000（學員第一次登入後自己改） */
+function resetAllPasscodes() {
+  var sh = sheet_(SH_PEOPLE), last = sh.getLastRow(), n = 0;
+  for (var row = 2; row <= last; row++) {
+    if (!String(sh.getRange(row, 1).getValue()).trim()) continue;
+    sh.getRange(row, 3).setValue('0000');
+    n++;
+  }
+  Logger.log('已把 ' + n + ' 個人的密碼重設為 0000');
+  return n;
+}

@@ -216,11 +216,9 @@
     }
     if(!np && !nr) return '<div class="pend" style="background:var(--surface);border-left-color:var(--line-2)">'+
       '<span class="msg" style="color:var(--ink-3);font-size:.88rem">目前沒有待審的資料</span>'+
-      '<span class="rvbtn"><button class="mini" id="loginBtn">我要填我的</button>'+
-      '<button class="mini ghost" id="enterRv">審核</button></span></div>';
+      '<span class="rvbtn"><button class="mini ghost" id="enterRv">審核</button></span></div>';
     return '<div class="pend"><b>'+np+'</b> 件等審核'+(nr?'　·　'+nr+' 件被退回':'')+
-      '<span class="rvbtn"><button class="mini" id="loginBtn">我要填我的</button>'+
-      '<button class="mini ghost" id="enterRv">審核</button></span></div>';
+      '<span class="rvbtn"><button class="mini ghost" id="enterRv">審核</button></span></div>';
   }
 
   function peopleHtml(){
@@ -294,7 +292,6 @@
       '⚠ 「分析填好的 N／16」是<strong>有沒有填</strong>，不是填得好不好；品質看的是<strong>退回次數</strong>。</p>';
     var ad=document.getElementById('add'); if(ad) ad.addEventListener('click', onAdd);
     document.getElementById('save').addEventListener('click', function(){ pull(); });
-    var lb=document.getElementById('loginBtn'); if(lb) lb.addEventListener('click', function(){ login(); });
     var lo=document.getElementById('logoutBtn'); if(lo) lo.addEventListener('click', function(){ me=null; render(); });
     var er=document.getElementById('enterRv'); if(er) er.addEventListener('click', enterReview);
     var xr=document.getElementById('exitRv');  if(xr) xr.addEventListener('click', function(){
@@ -313,22 +310,35 @@
     });
   }
 
-  function login(err){
-    if(!S.people.length){ say('還沒有名冊','Eason 還沒把名單匯進來。'); return; }
-    var opts=S.people.map(function(p){ return '<option value="'+esc(p.id)+'">'+esc(p.name||p.id)+'</option>'; }).join('');
-    ask({title:'我要填我的',
-         desc:'選你自己的名字，輸入 Eason 給你的四位數通行碼。<br>'+
-              '<select id="mWho" class="mysel">'+opts+'</select>',
-         input:'', ph:'四位數通行碼', ok:'進入', err:err||''}, function(v, ex){
-      if(v===null) return;
-      var code=(ex&&ex.select)||S.people[0].id;
+  function askPass(pid, err){
+    var p=find(pid); if(!p) return;
+    ask({title:esc(p.name||pid),
+         desc:'要填自己這一張，輸入你的四位數密碼。<b>第一次用的是預設密碼 0000</b>，'+
+              '進去之後記得按「改密碼」換掉。<br>只想看看別人的進度就按「取消」。',
+         input:'', ph:'四位數密碼', ok:'進入', err:err||''}, function(v){
+      if(v===null){ openSheet(pid); return; }
       var pass=String(v).trim();
-      var p=find(code), it=p&&p.items&&p.items[0];
-      if(!it){ login('這個人還沒有資料列'); return; }
-      api('saveItem',{code:code, pass:pass, item:it})
-        .then(function(d){ me={code:code,pass:pass}; admin=null; reviewMode=false;
-                           S={people:d.people||[],rev:(S.rev||0)+1}; migrate(); render(); openSheet(code); })
-        .catch(function(e){ login((e&&e.error)||'通行碼不對'); });
+      api('login',{code:pid, pass:pass}).then(function(d){
+        me={code:pid, pass:pass}; admin=null; reviewMode=false;
+        S={people:d.people||[], rev:(S.rev||0)+1}; migrate(); render(); openSheet(pid);
+        if(d.isDefault) say('這還是預設密碼',
+          '你現在用的是預設的 <b>0000</b>，別人猜得到。按下面的「<b>改密碼</b>」換一組只有你知道的四位數。');
+      }).catch(function(e){ askPass(pid, (e&&e.error)||'密碼不對'); });
+    });
+  }
+
+  function changePass(err){
+    if(!me) return;
+    ask({title:'改密碼', desc:'設一組只有你知道的<b>四位數字</b>。改完下次就用新的。',
+         input:'', ph:'新的四位數密碼', ok:'改掉', err:err||''}, function(v){
+      if(v===null) return;
+      var np=String(v).trim();
+      if(!/^[0-9]{4}$/.test(np)){ changePass('要剛好四位數字'); return; }
+      api('changePass',{newPass:np}).then(function(d){
+        var pid=me.code; me.pass=np;
+        S={people:d.people||[], rev:(S.rev||0)+1}; migrate(); render(); openSheet(pid);
+        say('改好了','你的新密碼是 <b>'+esc(np)+'</b>，下次用這組登入。');
+      }).catch(function(e){ changePass((e&&e.error)||'改不了'); });
     });
   }
 
@@ -508,6 +518,7 @@
       '</div>'+
       '<div class="sfoot">'+
         '<button class="act" id="doneBtn">完成並存檔</button>'+
+        (me && me.code===p.id ? '<button class="act ghost" id="pwBtn">改密碼</button>' : '')+
         '<span class="note" id="sMsg"></span>'+
 
       '</div></div></div>';
@@ -532,6 +543,7 @@
     }
     document.getElementById('closeX').addEventListener('click', closeSheet);
     document.getElementById('doneBtn').addEventListener('click', onDone);
+    var pw=document.getElementById('pwBtn'); if(pw) pw.addEventListener('click', function(){ changePass(); });
     document.getElementById('back').addEventListener('mousedown', function(e){
       if(e.target && e.target.id==='back') closeSheet();
     });
@@ -643,7 +655,11 @@
   document.addEventListener('click', function(e){
     var t=e.target && e.target.closest ? e.target.closest('[data-open],[data-sess],[data-del],[data-delitem],[data-submit],[data-approve],[data-reject],[data-withdraw],[data-unapprove],[data-torv]') : null;
     if(!t) return;
-    if(t.hasAttribute('data-open')){ openSheet(t.getAttribute('data-open')); }
+    if(t.hasAttribute('data-open')){
+      var pid=t.getAttribute('data-open');
+      if(admin || (me && me.code===pid)) openSheet(pid);
+      else askPass(pid, '');
+    }
     else if(t.hasAttribute('data-torv')){ enterReview(); }
     else if(t.hasAttribute('data-sess')){
       if(!reviewMode) return;           // 四堂進度只有審核模式能改
@@ -765,8 +781,9 @@
     var b=document.getElementById('save'); if(b) b.disabled=true;
     var a=document.getElementById('add'); if(a) a.disabled=true;
     var box=document.getElementById('roBox');
-    if(box) box.innerHTML='<div class="ro"><strong>要填自己那一張，先按上面的「我要填我的」。</strong><br>'+
-      '選你的名字、輸入 Eason 給你的四位數通行碼就可以編輯。沒登入的時候整個看板是唯讀的。</div>';
+    if(box) box.innerHTML='<div class="ro"><strong>要填自己那一張，直接點你自己的卡片。</strong><br>'+
+      '會跳出來問密碼——<strong>第一次用的是預設的 0000</strong>，進去之後按「改密碼」換掉。<br>'+
+      '別人的卡片點開只能看，改不了。</div>';
   }
 
   window.addEventListener('beforeunload', function(e){ if(dirty){ e.preventDefault(); e.returnValue=''; } });
