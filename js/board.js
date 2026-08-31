@@ -293,7 +293,8 @@
     var ad=document.getElementById('add'); if(ad) ad.addEventListener('click', onAdd);
     document.getElementById('save').addEventListener('click', function(){ pull(); });
     var lo=document.getElementById('logoutBtn'); if(lo) lo.addEventListener('click', function(){ me=null; render(); });
-    var er=document.getElementById('enterRv'); if(er) er.addEventListener('click', enterReview);
+    var er=document.getElementById('enterRv');
+    if(er) er.addEventListener('click', function(){ enterReview(); });  // 不能直接傳 enterReview，event 會被當成 err 印出來
     var xr=document.getElementById('exitRv');  if(xr) xr.addEventListener('click', function(){
       reviewMode=false; admin=null; render();
     });
