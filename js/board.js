@@ -526,8 +526,7 @@
       '<div class="sbody">'+
         '<div class="pertop" id="perTop">'+sumHtml(p)+
           '<div><span class="lb" style="display:block;margin-bottom:.35rem">四堂進度 ＋ ★ 10/07 分享'+
-            (reviewMode?'（你可以改）'
-                       :'（學員不能自己勾——<button class="lnk" data-torv="1">進審核模式</button>才能改）')+'</span>'+
+            (reviewMode?'（你可以改）':'')+'</span>'+
           '<span class="sess">'+LESSONS.map(function(l,k){
             return '<button data-sess="'+esc(p.id)+'" data-k="'+k+'" class="'+((p.sess&&p.sess[k])?'on':'')+'"'+
               (reviewMode?'':' disabled')+' title="'+(k<4?('第 '+l+' 堂交件通過'):'10/07 成果分享（現場或線上都算）')+'">'+l+'</button>';
@@ -671,14 +670,13 @@
   });
 
   document.addEventListener('click', function(e){
-    var t=e.target && e.target.closest ? e.target.closest('[data-open],[data-sess],[data-del],[data-delitem],[data-submit],[data-approve],[data-reject],[data-withdraw],[data-unapprove],[data-torv]') : null;
+    var t=e.target && e.target.closest ? e.target.closest('[data-open],[data-sess],[data-del],[data-delitem],[data-submit],[data-approve],[data-reject],[data-withdraw],[data-unapprove]') : null;
     if(!t) return;
     if(t.hasAttribute('data-open')){
       var pid=t.getAttribute('data-open');
       if(admin || (me && me.code===pid)) openSheet(pid);
       else askPass(pid, '');   // 不是自己的卡片，沒有密碼就打不開
     }
-    else if(t.hasAttribute('data-torv')){ enterReview(); }
     else if(t.hasAttribute('data-sess')){
       if(!reviewMode) return;           // 四堂進度只有審核模式能改
       var p=find(t.getAttribute('data-sess')); if(!p) return;
