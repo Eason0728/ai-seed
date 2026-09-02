@@ -142,7 +142,7 @@
     ['w','本週先做','一個具體動作，這週做得完的'],
     ['n','下週看', '一個可以驗證的數字']
   ];
-  function newItem(){ return {id:uid('i'), topic:'', crit:[false,false,false,false],
+  function newItem(owner){ return {id:(owner||'x')+'-'+uid('t'), topic:'', crit:[false,false,false,false],
     beforeMin:'', perWeek:'', afterMin:'', status:0, lastUsed:'',
     blocker:'', noBlocker:false, needData:'',
     ana:{b:'',t:'',w:'',n:''}, review:'draft', rejectNote:'', rejectCount:0}; }
@@ -564,7 +564,7 @@
     var n=(p.items||[]).length;
     return '<div class="back" id="back"><div class="sheet" role="dialog" aria-modal="true" aria-label="學員細項">'+
       '<div class="shd">'+
-        '<input class="nm" type="text" data-f="name" data-id="'+esc(p.id)+'" value="'+esc(p.name)+'" placeholder="姓名" aria-label="姓名">'+
+        '<input class="nm" type="text" value="'+esc(p.name)+'" readonly aria-label="姓名" title="姓名照名冊，要改跟 Eason 說">'+
         '<button class="x" id="closeX" aria-label="關閉">✕</button></div>'+
       '<div class="sbody">'+
         '<div class="pertop" id="perTop">'+sumHtml(p)+
@@ -610,11 +610,11 @@
     var ai=document.getElementById('addItem');
     if(ai) ai.addEventListener('click', function(){
       var pp=find(this.getAttribute('data-id')); if(!pp) return;
-      var it=newItem(); pp.items.push(it); touch(); openSheet(pp.id, it.id);
+      var it=newItem(pp.id); pp.items.push(it); touch(); openSheet(pp.id, it.id);
     });
     var target = focusItemId
       ? document.querySelector('#layer [data-item="'+focusItemId+'"][data-f="topic"]')
-      : document.querySelector('#layer [data-f="name"]');
+      : document.querySelector('#layer [data-f="topic"]');
     if(target && !target.disabled){
       try{ target.focus(); }catch(e){}
       if(focusItemId){ var box=document.getElementById('it-'+focusItemId);
@@ -734,7 +734,10 @@
       if(t.hasAttribute('data-submit')){
         if(!ii.topic || String(ii.topic).trim()===''){
           say('還不能送審','先填「題目」那一格，Eason 才知道你要做哪一件事。'); return; }
-        act('submit',{itemId:ii.id}, pp.id);
+        if(dirty){   // 先把改到一半的存進去，不然送審鎖住的是舊資料
+          saveNow(function(ok,msg2){ if(ok) act('submit',{itemId:ii.id}, pp.id);
+                                     else say('先存檔沒成功', msg2); });
+        } else act('submit',{itemId:ii.id}, pp.id);
       } else if(t.hasAttribute('data-approve')){
         act('review',{itemId:ii.id, verdict:'approve'}, pp.id);
       } else if(t.hasAttribute('data-reject')){
@@ -752,10 +755,19 @@
       if(p2.items.length<=1) return;
       ask({title:'移除「'+(it.topic||'這件事')+'」？',
            desc:'這件事填過的時間帳、分析、審核紀錄都會不見，<strong>而且沒辦法復原</strong>。',
-           ok:'移除', danger:true}, function(v){
-        if(!v) return;
-        p2.items=p2.items.filter(function(x){ return x.id!==iid; });
-        touch(); openSheet(p2.id);
+           ok:'移除', danger:true, hold:true}, function(v, x, ctl){
+        ctl.busy('移除中…');
+        api('deleteItem',{itemId:iid}).then(function(d){
+          ctl.close();
+          S={people:d.people||[], rev:(S.rev||0)+1}; dirty=false; migrate(); render(); openSheet(p2.id);
+        }).catch(function(e){
+          if(e && e.error==='找不到這一件'){   // 後端本來就沒有＝還沒存過，畫面拿掉就好
+            ctl.close();
+            p2.items=p2.items.filter(function(xx){ return xx.id!==iid; });
+            openSheet(p2.id); return;
+          }
+          ctl.err(errMsg(e));
+        });
       });
     }
     else if(t.hasAttribute('data-del')){
@@ -835,7 +847,10 @@
     if(!p){ cb(false,'找不到這個人','warn'); return; }
     if(me && me.code!==p.id){ cb(false,'你只能改自己那一張','warn'); return; }
     saving=true;
-    var jobs=p.items.map(function(it){ return api('saveItem',{item:it}); });
+    // 送審中／已通過的件後端不收（也不該收），跳過它們，不然整包存檔會一起失敗
+    var todo=p.items.filter(function(it){ return !locked(it); });
+    if(!todo.length){ saving=false; dirty=false; cb(true,'沒有可存的變更','ok'); return; }
+    var jobs=todo.map(function(it){ return api('saveItem',{item:it}); });
     Promise.all(jobs).then(function(res){
       saving=false; dirty=false;
       var last=res[res.length-1];

@@ -99,6 +99,7 @@ function doPost(e) {
   try { lock.waitLock(20000); } catch (err) { return respond_({ ok: false, error: '有人正在存檔，再按一次' }); }
   try {
     if (a === 'saveItem')   return respond_(handleSaveItem_(payload));
+    if (a === 'deleteItem') return respond_(handleDeleteItem_(payload));
     if (a === 'changePass') return respond_(handleChangePass_(payload));
     if (a === 'resetPass')  return respond_(handleResetPass_(payload));
     if (a === 'submit')     return respond_(handleSubmit_(payload));
@@ -280,21 +281,57 @@ function handleLogin_(payload) {
 
 /** 學員存自己那一件（不改審核狀態） */
 function handleSaveItem_(payload) {
-  var a = auth_(payload); if (!a.ok) return a;
   var it = payload.item; if (!it || !it.id) return { ok: false, error: '缺少件資料' };
-  if (String(it.id).indexOf(a.person.code) !== 0) return { ok: false, error: '不能改別人的資料' };
+  var isAdmin = adminOk_(payload);
+  var code, name, viewer;
+  if (isAdmin) {
+    // Eason 在審核模式代填——從件ID前綴找出這件是誰的
+    var mm = String(it.id).match(/^([A-Za-z]+\d+)-/);
+    var owner = mm ? person_(mm[1]) : null;
+    if (!owner) return { ok: false, error: '看不出這件是誰的（件ID要以學員代號開頭）' };
+    code = owner.code; name = owner.name; viewer = null;
+  } else {
+    var a = auth_(payload); if (!a.ok) return a;
+    if (String(it.id).indexOf(a.person.code) !== 0) return { ok: false, error: '不能改別人的資料' };
+    code = a.person.code; name = a.person.name; viewer = code;
+  }
   var row = itemRow_(it.id);
   if (row) {
     var cur = rows_(SH_ITEMS).filter(function (r) { return String(r['件ID']) === String(it.id); })[0];
-    if (cur && (cur['審核狀態'] === 'pending' || cur['審核狀態'] === 'approved'))
+    if (!isAdmin && cur && (cur['審核狀態'] === 'pending' || cur['審核狀態'] === 'approved'))
       return { ok: false, error: '這件已送出或已通過，要先按「我要修改」' };
     it.review = cur ? (str_(cur['審核狀態']) || 'draft') : 'draft';
     it.rejectNote = cur ? str_(cur['退回原因']) : '';
     it.rejectCount = cur ? Number(cur['退回次數'] || 0) : 0;
   } else { it.review = 'draft'; it.rejectNote = ''; it.rejectCount = 0; }
-  writeItem_(a.person.code, it);
-  log_(a.person.code, a.person.name, it.id, '存檔', str_(it.topic));
-  return handleGetAll_(a.person.code, false);
+  writeItem_(code, it);
+  log_(code, name, it.id, isAdmin ? '存檔（Eason代填）' : '存檔', str_(it.topic));
+  return handleGetAll_(viewer, isAdmin);
+}
+
+// ── ② 真的從試算表刪掉一件（原本「移除這件」只改畫面，重新整理就回來） ──
+function handleDeleteItem_(payload) {
+  var id = String(payload.itemId || '');
+  var isAdmin = adminOk_(payload);
+  var code, name;
+  if (isAdmin) {
+    var mm = id.match(/^([A-Za-z]+\d+)-/);
+    var owner = mm ? person_(mm[1]) : null;
+    if (!owner) return { ok: false, error: '看不出這件是誰的' };
+    code = owner.code; name = owner.name;
+  } else {
+    var a = auth_(payload); if (!a.ok) return a;
+    if (id.indexOf(a.person.code) !== 0) return { ok: false, error: '不能刪別人的資料' };
+    code = a.person.code; name = a.person.name;
+  }
+  var row = itemRow_(id);
+  if (!row) return { ok: false, error: '找不到這一件' };
+  var cur = rows_(SH_ITEMS).filter(function (r) { return String(r['件ID']) === id; })[0];
+  if (!isAdmin && cur && (cur['審核狀態'] === 'pending' || cur['審核狀態'] === 'approved'))
+    return { ok: false, error: '這件已送出或已通過，不能直接移除——先按「我要修改」撤回' };
+  sheet_(SH_ITEMS).deleteRow(row);
+  log_(code, name, id, '移除', cur ? str_(cur['題目']) : '');
+  return handleGetAll_(isAdmin ? null : code, isAdmin);
 }
 
 /** 學員送出審核——這一筆進交件紀錄，就是 10/07 判準①的憑據 */
