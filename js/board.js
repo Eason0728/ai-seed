@@ -436,15 +436,11 @@
     var a='data-id="'+esc(p.id)+'" data-item="'+esc(it.id)+'"';
     return '<label class="noblk"><input type="checkbox" data-noblk="1" '+a+
       (it.noBlocker?' checked':'')+'>這件目前沒有卡點</label>'+
-      '<textarea data-f="blocker" '+a+' class="'+(it.noBlocker?'off':'')+
-      '" placeholder="卡在哪就照實寫，一句話就好">'+esc(it.blocker)+'</textarea>'+
-      '<div class="hintline'+(it.noBlocker?' off':'')+'">'+
-        '<strong>寫得越具體，我越幫得上。</strong>寫「不會用」我沒辦法幫你，'+
-        '寫「它一直說找不到我的檔案」我一看就知道問題在哪。<br>'+
-        '例：<em>它找不到我的資料夾</em>　·　<em>比出來的差異清單有一半對不上</em>　·　'+
-        '<em>不知道要拿哪兩份來比</em>　·　<em>時間根本沒省到，還變慢</em><br>'+
-        '這禮拜沒卡住就勾上面那個框，<strong>空著不填我會以為你還沒開始</strong>。'+
-      '</div>';
+      '<textarea data-f="blocker" '+a+' class="blk '+(it.noBlocker?'off':'')+
+      '" placeholder="卡在哪就照實寫，一句話就好。寫得越具體我越幫得上——'+
+      '寫「不會用」我沒辦法幫；寫「它一直說找不到我的檔案」我一看就知道問題在哪。\n'+
+      '例：它找不到我的資料夾／差異清單有一半對不上／不知道要拿哪兩份來比／時間沒省到還變慢\n'+
+      '這禮拜沒卡住就勾上面那個框，空著不填我會以為你還沒開始">'+esc(it.blocker)+'</textarea>';
   }
 
   // 學員在 pending／approved 時不能改；審核模式下 Eason 一律可改

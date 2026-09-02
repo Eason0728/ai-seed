@@ -300,6 +300,7 @@ input[type=text], input[type=number], input[type=date], select, textarea{
 input:focus, select:focus, textarea:focus{outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent)}
 input[type=number]{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums}
 textarea{resize:vertical; min-height:2.6rem}
+textarea.blk{min-height:8.2rem}   /* 卡點的示範提示有三行，欄位要夠高才看得到 */
 .mins{display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; font-size:.95rem; color:var(--ink-3)}
 .mins input{width:4.4rem}
 
