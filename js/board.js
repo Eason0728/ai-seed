@@ -318,8 +318,8 @@
         '<div class="fi"><b>欄位對應哪一堂</b><span>題目與四標準＝第 01 堂　·　狀態＝第 03–04 堂　·　'+
           '<strong>時間帳與分析四格＝第 01 堂就填，每週更新</strong>　·　'+
           '「拿不到的數字」＝任何一堂撞到就寫。</span></div>'+
-        '<div class="fi"><b>分析四格</b><span>四格填滿會組成一句完整的話——那是總經理 Q2 要的'+
-          '「看得到怎麼想的過程」。</span></div>'+
+        '<div class="fi"><b>分析四格</b><span>四格填滿會組成一句完整的話——'+
+          '<strong>交出去不會被問「所以呢」的長相</strong>。</span></div>'+
         '<div class="fi"><b>分析填好的 N／16</b><span>看的是<strong>有沒有填</strong>，不是填得好不好；'+
           '品質看的是<strong>退回次數</strong>。</span></div>'+
       '</div>';
