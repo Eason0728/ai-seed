@@ -352,6 +352,8 @@ button.act[disabled]{opacity:.5; cursor:default}
 .foot .fi b{font-family:"IBM Plex Mono",monospace; font-size:.82rem; font-weight:600;
   color:var(--ink-2); letter-spacing:.03em}
 .foot .fi span{line-height:1.75}
+.foot .fi .rows{display:flex; flex-direction:column; gap:.2rem}
+.foot .fi .rows i{font-style:normal; display:block}
 .foot strong{color:var(--ink-2)}
 @media(max-width:36rem){.foot .fi{grid-template-columns:1fr; gap:.15rem}}
 .hintline{font-size:.85rem; color:var(--ink-3); margin-top:.4rem; line-height:1.7}

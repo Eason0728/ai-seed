@@ -362,11 +362,14 @@
         '<button class="act" id="save">重新整理</button>'+
         '<span class="note" id="msg"></span></div>'+
       '<div class="foot">'+
-        '<div class="fi"><b>每月省下怎麼算</b><span>（原本每次分鐘 － 現在每次分鐘）× 每週次數 × 4.33 週。'+
-          '一個人有多件事時，就是各件加總。</span></div>'+
-        '<div class="fi"><b>欄位對應哪一堂</b><span>題目與四標準＝第 01 堂　·　狀態＝第 03–04 堂　·　'+
-          '<strong>時間帳與分析四格＝第 01 堂就填，每週更新</strong>　·　'+
-          '「拿不到的數字」＝任何一堂撞到就寫。</span></div>'+
+        '<div class="fi"><b>每月省下怎麼算</b><span>原本每次分鐘 減 現在每次分鐘，'+
+          '再乘每週次數、乘 4.33 週。一個人有多件事時就是各件加總。</span></div>'+
+        '<div class="fi"><b>欄位對應哪一堂</b><span class="rows">'+
+          '<i>題目與四標準　＝　第 01 堂</i>'+
+          '<i>狀態　＝　第 03–04 堂</i>'+
+          '<i><strong>時間帳與分析四格　＝　第 01 堂就填，每週更新</strong></i>'+
+          '<i>「拿不到的數字」　＝　任何一堂撞到就寫</i>'+
+        '</span></div>'+
         '<div class="fi"><b>分析四格</b><span>四格填滿會組成一句完整的話——'+
           '<strong>交出去不會被問「所以呢」的長相</strong>。</span></div>'+
         '<div class="fi"><b>分析填好的 N／16</b><span>看的是<strong>有沒有填</strong>，不是填得好不好；'+
