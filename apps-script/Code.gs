@@ -87,18 +87,22 @@ function doPost(e) {
   catch (err) { return respond_({ ok: false, error: '請求格式錯誤' }); }
   if (!payload || typeof payload !== 'object') return respond_({ ok: false, error: '請求格式錯誤' });
 
+  var a = payload.action;
+
+  // 唯讀動作不搶鎖。全部包在鎖裡的話，16 個人同時開頁就會互相排隊——
+  // 2026-09-02 實測 getAll 連續呼叫會從 3 秒暴增到 34 秒。
+  if (a === 'getAll')    { var v = viewerOf_(payload); return respond_(handleGetAll_(v.code, v.admin)); }
+  if (a === 'login')     return respond_(handleLogin_(payload));
+  if (a === 'adminAuth') return respond_(handleAdminAuth_(payload));
+
   var lock = LockService.getScriptLock();
   try { lock.waitLock(20000); } catch (err) { return respond_({ ok: false, error: '有人正在存檔，再按一次' }); }
   try {
-    var a = payload.action;
-    if (a === 'getAll')     { var v = viewerOf_(payload); return respond_(handleGetAll_(v.code, v.admin)); }
     if (a === 'saveItem')   return respond_(handleSaveItem_(payload));
-    if (a === 'login')      return respond_(handleLogin_(payload));
     if (a === 'changePass') return respond_(handleChangePass_(payload));
     if (a === 'resetPass')  return respond_(handleResetPass_(payload));
     if (a === 'submit')     return respond_(handleSubmit_(payload));
     if (a === 'withdraw')   return respond_(handleWithdraw_(payload));
-    if (a === 'adminAuth')  return respond_(handleAdminAuth_(payload));
     if (a === 'review')     return respond_(handleReview_(payload));
     if (a === 'setSess')    return respond_(handleSetSess_(payload));
     return respond_({ ok: false, error: '不支援的操作：' + a });

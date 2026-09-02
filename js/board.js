@@ -33,17 +33,35 @@
       '</div></div>';
     host.appendChild(w);
     var inp=w.querySelector('#mIn');
+    var yes=w.querySelector('#mYes'), no=w.querySelector('#mNo'), eb=w.querySelector('#mErr');
+    var okLabel=o.ok||'確定', busy=false;
+    // o.hold＝true 時按下去不關窗，改由呼叫端用 ctl 控制——
+    // 後端要 2–8 秒，關掉視窗會讓人以為沒反應（2026-09-02 Eason 回報）
+    var ctl={
+      busy:function(t){ busy=true;
+        yes.disabled=true; if(no) no.disabled=true; if(inp) inp.disabled=true;
+        yes.textContent=t||'處理中…';
+        eb.className='merr wait'; eb.textContent='正在連伺服器，大約 2–8 秒，先別關掉'; },
+      err:function(m){ busy=false;
+        yes.disabled=false; if(no) no.disabled=false;
+        if(inp){ inp.disabled=false; try{ inp.focus(); inp.select(); }catch(e){} }
+        yes.textContent=okLabel;
+        eb.className='merr'; eb.textContent=m||'再試一次'; },
+      close:function(){ busy=false; closeAsk(); document.removeEventListener('keydown',key,true); }
+    };
     function done(v){
+      if(busy) return;                       // 連線中，不要重複送
       var sel=w.querySelector('select');
       var extra={ select: sel? sel.value : null };
+      if(o.hold && v!==null){ if(cb) cb(v, extra, ctl); return; }
       closeAsk(); document.removeEventListener('keydown',key,true);
-      if(cb) cb(v, extra);
+      if(cb) cb(v, extra, ctl);
     }
-    function key(e){ if(e.key==='Escape'){ e.preventDefault(); done(null); } }
+    function key(e){ if(e.key==='Escape'&&!busy){ e.preventDefault(); done(null); } }
     document.addEventListener('keydown',key,true);
-    var no=w.querySelector('#mNo'); if(no) no.addEventListener('click',function(){ done(null); });
-    w.querySelector('#mYes').addEventListener('click',function(){ done(inp?inp.value:true); });
-    w.addEventListener('click',function(e){ if(e.target===w) done(null); });
+    if(no) no.addEventListener('click',function(){ done(null); });
+    yes.addEventListener('click',function(){ done(inp?inp.value:true); });
+    w.addEventListener('click',function(e){ if(e.target===w && !busy) done(null); });
     if(inp){ inp.focus(); inp.select();
       inp.addEventListener('keydown',function(e){
         if(e.key==='Enter'){ e.preventDefault(); done(inp.value); } }); }
@@ -52,12 +70,16 @@
   function say(title, desc, cb){ ask({title:title, desc:desc, only:true, ok:'知道了'}, function(){ if(cb) cb(); }); }
   function askReject(pp, ii, err){
     ask({title:'退回這一件', desc:'寫一句話告訴學員<strong>要改什麼</strong>——他會在自己的卡片上看到這句。',
-         input: ii.rejectNote||'', ph:'例如：一週只做 1 次，「高頻」那項沒過', ok:'退回', err:err||''},
-      function(v){
-        if(v===null) return;
+         input: ii.rejectNote||'', ph:'例如：一週只做 1 次，「高頻」那項沒過', ok:'退回',
+         err:err||'', hold:true},
+      function(v, x, ctl){
         v=String(v).trim();
-        if(!v){ askReject(pp, ii, '要寫原因，不然學員不知道要改什麼'); return; }
-        act('review',{itemId:ii.id, verdict:'reject', note:v}, pp.id);
+        if(!v){ ctl.err('要寫原因，不然學員不知道要改什麼'); return; }
+        ctl.busy('送出中…');
+        api('review',{itemId:ii.id, verdict:'reject', note:v}).then(function(d){
+          ctl.close();
+          S={people:d.people||[], rev:(S.rev||0)+1}; dirty=false; migrate(); render(); openSheet(pp.id);
+        }).catch(function(e){ ctl.err(errMsg(e)); });
       });
   }
 
@@ -314,11 +336,13 @@
   }
   function enterReview(err){
     ask({title:'輸入審核通行碼', desc:'只有 Eason 進得來——通過／退回、勾四堂進度。',
-         input:'', ok:'進入', err:err||''}, function(v){
-      if(v===null) return;
-      api('adminAuth',{admin:String(v).trim()}).then(function(){
-        admin=String(v).trim(); me=null; reviewMode=true; render();
-      }).catch(function(){ enterReview('通行碼不對'); });
+         input:'', ok:'進入', err:err||'', hold:true}, function(v, x, ctl){
+      var code=String(v).trim();
+      if(!code){ ctl.err('還沒輸入'); return; }
+      ctl.busy('檢查中…');
+      api('adminAuth',{admin:code}).then(function(){
+        ctl.close(); admin=code; me=null; reviewMode=true; render();
+      }).catch(function(e){ ctl.err(errMsg(e,'通行碼不對')); });
     });
   }
 
@@ -327,15 +351,17 @@
     ask({title:esc(p.name||pid),
          desc:'這一張只有本人打得開。輸入<b>'+esc(p.name||pid)+'</b>的四位數密碼。<br>'+
               '如果這是你自己的卡片，<b>第一次用的是預設密碼 0000</b>，進去之後記得按「改密碼」換掉。',
-         input:'', ph:'四位數密碼', ok:'進入', err:err||''}, function(v){
-      if(v===null) return;   // 取消就什麼都不開
+         input:'', ph:'四位數密碼', ok:'進入', err:err||'', hold:true}, function(v, x, ctl){
       var pass=String(v).trim();
+      if(!/^[0-9]{4}$/.test(pass)){ ctl.err('密碼是四位數字'); return; }
+      ctl.busy('檢查中…');
       api('login',{code:pid, pass:pass}).then(function(d){
+        ctl.close();
         me={code:pid, pass:pass}; admin=null; reviewMode=false;
         S={people:d.people||[], rev:(S.rev||0)+1}; migrate(); render(); openSheet(pid);
         if(d.isDefault) say('這還是預設密碼',
           '你現在用的是預設的 <b>0000</b>，別人猜得到。按下面的「<b>改密碼</b>」換一組只有你知道的四位數。');
-      }).catch(function(e){ askPass(pid, (e&&e.error)||'密碼不對'); });
+      }).catch(function(e){ ctl.err(errMsg(e,'密碼不對')); });
     });
   }
 
@@ -344,27 +370,30 @@
     if(!admin) return;
     ask({title:'把「'+name+'」的密碼重設？',
          desc:'他的密碼會變回預設的 <b>0000</b>。跟他講一聲，叫他進去之後自己再改一組。',
-         ok:'重設', danger:true}, function(v){
-      if(!v) return;
+         ok:'重設', danger:true, hold:true}, function(v, x, ctl){
+      ctl.busy('重設中…');
       api('resetPass',{target:pid}).then(function(d){
+        ctl.close();
         S={people:d.people||[], rev:(S.rev||0)+1}; migrate(); render(); openSheet(pid);
         say('已經重設', esc(name)+' 現在的密碼是 <b>0000</b>。');
-      }).catch(function(e){ say('沒有成功',(e&&e.error)||'再試一次'); });
+      }).catch(function(e){ ctl.err(errMsg(e)); });
     });
   }
 
   function changePass(err){
     if(!me) return;
     ask({title:'改密碼', desc:'設一組只有你知道的<b>四位數字</b>。改完下次就用新的。',
-         input:'', ph:'新的四位數密碼', ok:'改掉', err:err||''}, function(v){
-      if(v===null) return;
+         input:'', ph:'新的四位數密碼', ok:'改掉', err:err||'', hold:true}, function(v, x, ctl){
       var np=String(v).trim();
-      if(!/^[0-9]{4}$/.test(np)){ changePass('要剛好四位數字'); return; }
+      if(!/^[0-9]{4}$/.test(np)){ ctl.err('要剛好四位數字'); return; }
+      if(np==='0000'){ ctl.err('不能設成預設的 0000，換一組'); return; }
+      ctl.busy('改密碼中…');
       api('changePass',{newPass:np}).then(function(d){
+        ctl.close();
         var pid=me.code; me.pass=np;
         S={people:d.people||[], rev:(S.rev||0)+1}; migrate(); render(); openSheet(pid);
         say('改好了','你的新密碼是 <b>'+esc(np)+'</b>，下次用這組登入。');
-      }).catch(function(e){ changePass((e&&e.error)||'改不了'); });
+      }).catch(function(e){ ctl.err(errMsg(e,'改不了')); });
     });
   }
 
@@ -453,10 +482,11 @@
       out='<div class="anaout"><b>因為</b> '+esc(v.b)+'<b>，所以</b> '+esc(v.t)+
           '<b>，本週先做</b> '+esc(v.w)+'<b>，下週看</b> '+esc(v.n)+'。</div>';
     } else if(n===0){
-      out='<div class="anamiss"><strong>從第 01 堂就填，每週跟時間帳一起更新。</strong>'+
-        '第 01–02 堂寫的是「我為什麼挑這件事、要看什麼變化」；'+
+      out='<div class="anamiss"><strong>從第 01 堂就填，每週跟時間帳一起更新。</strong><br>'+
+        '第 01–02 堂寫的是「我為什麼挑這件事、要看什麼變化」；<br>'+
         '第 03 堂起，改成分析你這週真的做出來的那份產出。<br>'+
-        '四格填滿，下面會組成一句完整的話——那就是交出去不會被問「所以呢」的長相。</div>';
+        '四格填滿，下面會組成一句完整的話——<br>'+
+        '那就是交出去不會被問「所以呢」的長相。</div>';
     } else {
       out='<div class="anamiss">還差 '+(4-n)+' 格。<strong>四格缺一格，交出去就會被問「所以呢」。</strong></div>';
     }
@@ -741,15 +771,29 @@
   var me = null;        // 學員登入後：{code, name, pass}
   var admin = null;     // Eason 的審核通行碼
 
+  // 後端回來的錯誤／網路錯誤，翻成學員看得懂的一句話
+  function errMsg(e, dflt){
+    if(e && e.error) return e.error;
+    if(e && e.name==='AbortError') return '等太久了，網路可能不穩，再按一次';
+    if(e && e.name==='SyntaxError') return '伺服器回了看不懂的東西，再按一次';
+    if(e instanceof TypeError) return '連不上網路，確認一下連線再試';
+    return dflt||'再試一次';
+  }
+
   function api(action, extra){
     if(!API) return Promise.reject({error:'還沒設定後端網址（js/config.js）'});
     var body = {action: action};
     if(me){ body.code = me.code; body.pass = me.pass; }
     if(admin) body.admin = admin;
     for(var k in extra) if(Object.prototype.hasOwnProperty.call(extra,k)) body[k]=extra[k];
-    return fetch(API, {method:'POST', headers:{'Content-Type':'text/plain'},
-                       body: JSON.stringify(body)})
-      .then(function(r){ return r.json(); })
+    // 沒有逾時的話，一旦後端卡住就會永遠停在「處理中」
+    var ac = (typeof AbortController!=='undefined') ? new AbortController() : null;
+    var timer = setTimeout(function(){ if(ac) ac.abort(); }, 30000);
+    var opt = {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify(body)};
+    if(ac) opt.signal = ac.signal;
+    return fetch(API, opt)
+      .then(function(r){ clearTimeout(timer); return r.json(); },
+            function(e){ clearTimeout(timer); throw e; })
       .then(function(d){ if(!d.ok) throw d; return d; });
   }
 
@@ -760,7 +804,7 @@
       S={people:d.people||[], rev:(S.rev||0)+1}; dirty=false; migrate(); render();
       if(reopen) openSheet(reopen);
     }).catch(function(e){
-      say('沒有成功',(e&&e.error)||'再試一次，或先重新整理看看資料是不是被別人改過了。');
+      say('沒有成功', errMsg(e,'再試一次，或先重新整理看看資料是不是被別人改過了。'));
     });
   }
 
@@ -769,7 +813,10 @@
       S = {people: d.people||[], rev:(S.rev||0)+1};
       dirty=false; migrate(); render(); if(cb) cb(true);
     }).catch(function(e){
-      msg((e&&e.error)||'讀不到資料，檢查網路','warn'); if(cb) cb(false);
+      var box=document.getElementById('roBox');
+      if(box) box.innerHTML='<div class="ro">'+esc(errMsg(e,'讀不到資料'))+'　·　'+
+        '按下面的「重新整理」再試一次。</div>';
+      msg(errMsg(e,'讀不到資料'),'warn'); if(cb) cb(false);
     });
   }
 
@@ -814,6 +861,8 @@
 
   function boot(){
     render();
+    var lb=document.getElementById('roBox');
+    if(lb) lb.innerHTML='<div class="ro">正在讀取大家的資料……第一次開大約 3–8 秒。</div>';
     pull(function(ok){
       if(ok && !S.people.length) say('名冊是空的','Eason 還沒把 16 個人匯進試算表。');
     });

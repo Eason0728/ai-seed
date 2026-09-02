@@ -61,7 +61,10 @@ p{margin:0}
 .mbox p{margin:0; font-size:1rem; color:var(--ink-2); line-height:1.7}
 .mbox input{width:100%; font:inherit; font-size:1.05rem; padding:.5rem .6rem;
   border:1px solid var(--line-2); border-radius:4px; background:var(--ground); color:var(--ink)}
-.mbox .merr{font-size:.94rem; color:var(--crit); min-height:1.1em}
+.mbox .merr{font-size:.94rem; color:var(--crit); min-height:1.1em; line-height:1.5}
+.mbox .merr.wait{color:var(--ink-3)}
+.mbox .mrow button[disabled]{opacity:.6; cursor:default}
+.mbox input[disabled]{opacity:.6}
 .mbox .mrow{display:flex; gap:.5rem; justify-content:flex-end; margin-top:.2rem}
 .mbox .mrow button{font:inherit; font-size:1rem; font-weight:500; cursor:pointer;
   border-radius:4px; padding:.5rem 1.05rem; border:1px solid var(--line-2);
