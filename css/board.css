@@ -362,6 +362,23 @@ button.act[disabled]{opacity:.5; cursor:default}
 @media (prefers-reduced-motion: reduce){.pcard{transition:none}}
 
 /* 登入用的名字下拉 */
+/* ── 手機：細項表改成全螢幕面板，表頭表底固定、中間捲動 ──
+   原本 .shd/.sfoot 是 sticky，手機上表幾乎滿版，內容會從上下穿出來被切一半 */
+@media (max-width:32rem){
+  .back{padding:0; align-items:stretch; justify-content:stretch; overflow:hidden}
+  .sheet{max-width:none; width:100%; margin:0; border:none; border-radius:0;
+    height:100vh; height:100dvh; display:flex; flex-direction:column}
+  .shd{position:static; flex:0 0 auto; border-radius:0; padding:.8rem .9rem}
+  .sbody{flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    padding:.9rem .9rem 1.4rem}
+  .sfoot{position:static; flex:0 0 auto; border-radius:0; padding:.75rem .9rem}
+  .sfoot .note{flex-basis:100%}
+  /* 「每次 ○ 分 × 每週 ○ 次」不要被拆行 */
+  .mins{gap:.3rem; font-size:.9rem}
+  .mins input{width:3.4rem}
+  .item .ibody{padding:.8rem}
+  .pertop{padding:.8rem}
+}
 .mysel{width:100%; margin-top:.5rem; font:inherit; font-size:.95rem;
   padding:.5rem .6rem; border:1px solid var(--line-2); border-radius:4px;
   background:var(--ground); color:var(--ink)}

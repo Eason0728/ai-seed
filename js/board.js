@@ -562,7 +562,7 @@
         (rv==='rejected'&&it.rejectNote
           ? '<div class="rejbox"><b>被退回的原因</b>'+esc(it.rejectNote)+'</div>' : '')+
         '<div data-calc="'+esc(it.id)+'">'+calcHtml(it)+'</div>'+
-        fld('題目','<input type="text" data-f="topic" '+a+' value="'+esc(it.topic)+'" placeholder="每週重複三次以上、最煩的那件事">')+
+        fld('題目','<input type="text" data-f="topic" '+a+' value="'+esc(it.topic)+'" placeholder="每週做三次以上、最煩的那件事">')+
         fld('四標準','<div class="crit" data-crit-box="'+esc(it.id)+'">'+critHtml(p,it)+'</div>')+
         fld('原本','<span class="mins">每次 <input type="number" min="0" data-f="beforeMin" '+a+' value="'+esc(it.beforeMin)+'"> 分 × 每週 <input type="number" min="0" data-f="perWeek" '+a+' value="'+esc(it.perWeek)+'"> 次</span>')+
         fld('現在','<span class="mins">每次 <input type="number" min="0" data-f="afterMin" '+a+' value="'+esc(it.afterMin)+'"> 分</span>')+
