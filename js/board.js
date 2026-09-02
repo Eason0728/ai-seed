@@ -248,6 +248,55 @@
       '<span class="rvbtn"><button class="mini ghost" id="enterRv">審核</button></span></div>';
   }
 
+  // ── 交件期限：每堂課（週四）結束後 3 天內＝當週日 23:59 ──
+  var DUE=[
+    {n:'01', d:new Date(2026,8, 7,23,59,59)},
+    {n:'02', d:new Date(2026,8,14,23,59,59)},
+    {n:'03', d:new Date(2026,8,21,23,59,59)},
+    {n:'04', d:new Date(2026,8,28,23,59,59)}];
+  var SHOW=new Date(2026,9,7,23,59,59);   // 10/07 成果分享
+
+  function dueState(p){
+    var sess=p.sess||[], k=-1;
+    for(var i=0;i<4;i++){ if(!sess[i]){ k=i; break; } }
+    if(k===-1){
+      if(sess[4]) return {cls:'ok', text:'四堂＋10/07 分享 全部完成'};
+      return {cls:'', pre:'10/07 成果分享', ts:SHOW.getTime()};
+    }
+    if(pendingCount(p)>0) return {cls:'pend', text:'已送審，等審核'};
+    var now=Date.now(), due=DUE[k];
+    if(now>due.d.getTime()){
+      var days=Math.floor((now-due.d.getTime())/86400000)+1;
+      return {cls:'late', text:'第 '+due.n+' 堂逾期 '+days+' 天——補交要快'};
+    }
+    return {cls:'', pre:'第 '+due.n+' 堂交件', ts:due.d.getTime()};
+  }
+  function fmtLeft(ms){
+    if(ms<0) ms=0;
+    var s=Math.floor(ms/1000), d=Math.floor(s/86400);
+    if(d>=1){ return '還剩 '+d+' 天 '+Math.floor((s-d*86400)/3600)+' 小時'; }
+    function z(x){ return (x<10?'0':'')+x; }
+    return '還剩 '+z(Math.floor(s/3600))+':'+z(Math.floor(s%3600/60))+':'+z(s%60);
+  }
+  function dueHtml(p){
+    var st=dueState(p);
+    if(st.text) return '<span class="duechip '+st.cls+'">'+st.text+'</span>';
+    var left=st.ts-Date.now();
+    return '<span class="duechip'+(left<86400000?' warn':'')+'" data-due-ts="'+st.ts+
+      '" data-due-pre="'+st.pre+'">'+st.pre+'　'+fmtLeft(left)+'</span>';
+  }
+  // 每秒更新倒數字樣；跨過期限那一刻整頁重畫一次換成「逾期」
+  setInterval(function(){
+    var now=Date.now(), flip=false;
+    document.querySelectorAll('[data-due-ts]').forEach(function(el){
+      var left=(+el.getAttribute('data-due-ts'))-now;
+      if(left<=0){ flip=true; return; }
+      el.textContent=el.getAttribute('data-due-pre')+'　'+fmtLeft(left);
+      if(left<86400000) el.classList.add('warn');
+    });
+    if(flip && !openId) render();
+  },1000);
+
   function peopleHtml(){
     if(!S.people.length) return '<div class="empty">還沒有人。按下面「＋ 新增學員」把 16 個人加進來。</div>';
     return '<div class="people">'+S.people.map(function(p,i){
@@ -267,7 +316,7 @@
           ? '<span class="v none">—</span><span class="u">還沒填時間帳</span>'
           : '<span class="v">'+fmt(s)+'</span><span class="u">分鐘 / 月</span>')+'</span>'+
         '<span class="ptopic'+(first?'':' empty')+'">'+topicLine+'</span>'+
-        '<span class="pbars">'+bars+'</span></button>';
+        '<span class="pbars">'+bars+'</span>'+dueHtml(p)+'</button>';
     }).join('')+'</div>';
   }
 
@@ -302,7 +351,7 @@
   function render(){
     document.getElementById('root').innerHTML=
       '<header>'+BRANDS+'<span class="kick">鼎兆元 · AI 種子計劃</span><h1>學習看板</h1>'+
-      '<p class="sub">四堂課（9/3–9/24）＋ 10/07 成果分享。每張卡片<strong>只有本人用自己的密碼才打得開</strong>，別人看得到的就是卡片上這些。一個人可以有不只一件事。不排名、不排序，順序照名冊。</p></header>'+
+      '<p class="sub">四堂課（9/3–9/24）＋ 10/07 成果分享。每張卡片<strong>只有本人用自己的密碼才打得開</strong>，別人看得到的就是卡片上這些。一個人可以有不只一件事。不排名、不排序，順序照名冊。<br><strong>交件期限：每堂課結束後 3 天內（當週日晚上）填完並送出審核</strong>——每張卡片上有自己的倒數。</p></header>'+
       '<div id="roBox"></div>'+
       totalHtml()+ pendHtml() +
       '<div class="sechd"><h2>每個人每月省下</h2><span class="hint">'+
