@@ -369,8 +369,10 @@ button.act[disabled]{opacity:.5; cursor:default}
   .sheet{max-width:none; width:100%; margin:0; border:none; border-radius:0;
     height:100vh; height:100dvh; display:flex; flex-direction:column}
   .shd{position:static; flex:0 0 auto; border-radius:0; padding:.8rem .9rem}
-  .sbody{flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  .sbody{flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
     padding:.9rem .9rem 1.4rem}
+  /* column flex 一旦限高，子元素會被壓扁而不是讓容器捲動——必須關掉收縮 */
+  .sbody > *{flex:0 0 auto}
   .sfoot{position:static; flex:0 0 auto; border-radius:0; padding:.75rem .9rem}
   .sfoot .note{flex-basis:100%}
   /* 「每次 ○ 分 × 每週 ○ 次」不要被拆行 */
