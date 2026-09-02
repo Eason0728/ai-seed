@@ -489,11 +489,12 @@
       out='<div class="anaout"><b>因為</b> '+esc(v.b)+'<b>，所以</b> '+esc(v.t)+
           '<b>，本週先做</b> '+esc(v.w)+'<b>，下週看</b> '+esc(v.n)+'。</div>';
     } else if(n===0){
-      out='<div class="anamiss"><strong>從第 01 堂就填，每週跟時間帳一起更新。</strong><br>'+
-        '第 01–02 堂寫的是「我為什麼挑這件事、要看什麼變化」；<br>'+
-        '第 03 堂起，改成分析你這週真的做出來的那份產出。<br>'+
-        '四格填滿，下面會組成一句完整的話——<br>'+
-        '那就是交出去不會被問「所以呢」的長相。</div>';
+      out='<div class="anamiss"><strong>從第 01 堂就填，每週跟時間帳一起更新。</strong>照這個樣子寫（示範）：</div>'+
+        '<div class="anaout demo"><span class="dtag">示範</span>'+
+        '<b>因為</b> 每天手抄三店營業額要花 30 分鐘'+
+        '<b>，所以</b> 改讓它自動彙整成一張表'+
+        '<b>，本週先做</b> 先用光復店跑一週'+
+        '<b>，下週看</b> 數字跟 POS 對不對得上。</div>';
     } else {
       out='<div class="anamiss">還差 '+(4-n)+' 格。<strong>四格缺一格，交出去就會被問「所以呢」。</strong></div>';
     }
@@ -525,7 +526,7 @@
         fld('最近用','<input type="date" data-f="lastUsed" '+a+' value="'+esc(it.lastUsed)+'">'+
             '<div class="hintline">每真的用一次就改成當天。10/07 會對照你資料夾裡的檔案日期。</div>')+
         fld('卡點','<div data-blk-box="'+esc(it.id)+'">'+blkHtml(p,it)+'</div>')+
-        fld('缺數字','<textarea data-f="needData" '+a+' placeholder="我需要但拿不到的數字（任何一堂撞到就寫）">'+esc(it.needData)+'</textarea>')+
+        fld('缺數字','<textarea data-f="needData" '+a+' placeholder="做這件事需要、但你現在拿不到的數字，任何一堂撞到就寫。例：每日來客數／廠商實際到貨時間／上個月同期的品項銷量">'+esc(it.needData)+'</textarea>')+
         fld('分析', anaHtml(p,it))+
       '</div>'+ itemFootHtml(p,it) +'</div>';
   }
