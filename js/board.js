@@ -306,7 +306,7 @@
       '<div id="roBox"></div>'+
       totalHtml()+ pendHtml() +
       '<div class="sechd"><h2>每個人每月省下</h2><span class="hint">'+
-        (S.people.length?'點自己的卡片，用密碼進去填，改完按「完成並存檔」':'')+'</span></div>'+
+        (S.people.length?'點自己的卡片，用密碼進去填。填完先存檔，要交件按「送出審核」':'')+'</span></div>'+
       peopleHtml()+
       needsHtml()+
       '<div class="bar">'+
@@ -468,9 +468,9 @@
     if(it.review==='approved')
       return '<div class="ifoot"><button class="mini ghost" data-withdraw="1" '+d+'>我要修改</button>'+
              '<span class="msg">已通過並計入看板。改了要重新送審，期間會先從數字扣掉</span></div>';
-    // draft / rejected
-    return '<div class="ifoot"><button class="mini" data-submit="1" '+d+'>送出審核</button>'+
-           '<span class="msg">送出後 Eason 會看，通過才會算進看板</span></div>';
+    // draft / rejected：這裡存草稿；交件走最下面的「送出審核」
+    return '<div class="ifoot"><button class="mini" data-saveitem="1" '+d+'>完成並存檔</button>'+
+           '<span class="msg">存檔＝存草稿，隨時可以再改。都填好了，按最下面的「送出審核」交件</span></div>';
   }
 
   function anaHtml(p,it){
@@ -576,7 +576,8 @@
         '<button class="additem" id="addItem" data-id="'+esc(p.id)+'">＋ 再加一件事</button>'+
       '</div>'+
       '<div class="sfoot">'+
-        '<button class="act" id="doneBtn">完成並存檔</button>'+
+        (me && me.code===p.id ? '<button class="act" id="submitAll">送出審核</button>' : '')+
+        (admin ? '<button class="act" id="doneBtn">完成並存檔</button>' : '')+
         (me && me.code===p.id ? '<button class="act ghost" id="pwBtn">改密碼</button>' : '')+
         (admin ? '<button class="act ghost" id="rsBtn">重設密碼為 0000</button>' : '')+
         '<span class="note" id="sMsg"></span>'+
@@ -597,7 +598,8 @@
       if(box) box.querySelectorAll('input,select,textarea').forEach(function(x){ x.disabled=true; });
     });
     document.getElementById('closeX').addEventListener('click', closeSheet);
-    document.getElementById('doneBtn').addEventListener('click', onDone);
+    var db=document.getElementById('doneBtn'); if(db) db.addEventListener('click', onDone);
+    var sa=document.getElementById('submitAll'); if(sa) sa.addEventListener('click', onSubmitAll);
     var pw=document.getElementById('pwBtn'); if(pw) pw.addEventListener('click', function(){ changePass(); });
     var rs=document.getElementById('rsBtn');
     if(rs) rs.addEventListener('click', function(){ resetPass(p.id, p.name||p.id); });
@@ -620,6 +622,43 @@
   }
   function closeSheet(){ openId=null; document.getElementById('layer').innerHTML=''; render(); }
   document.addEventListener('keydown', function(e){ if(e.key==='Escape'&&openId) closeSheet(); });
+
+  // 表底的「送出審核」：把 draft／退回、且有題目的件全部交出去
+  function onSubmitAll(){
+    var b=this, p=find(openId); if(!p) return;
+    var todo=(p.items||[]).filter(function(it){
+      var rv=it.review||'draft';
+      return (rv==='draft'||rv==='rejected') && String(it.topic||'').trim();
+    });
+    var noTopic=(p.items||[]).some(function(it){
+      var rv=it.review||'draft';
+      return (rv==='draft'||rv==='rejected') && !String(it.topic||'').trim();
+    });
+    if(!todo.length){
+      say(noTopic?'還不能送審':'沒有可以送審的件',
+          noTopic?'先填「題目」那一格，存檔之後再送。':'每一件都已經送出或通過了。');
+      return;
+    }
+    b.disabled=true; b.textContent='送出中…';
+    var sm=document.getElementById('sMsg'); if(sm){ sm.textContent='大約 '+(todo.length*3)+'–'+(todo.length*8)+' 秒'; sm.className='note'; }
+    function fin(ok,message){
+      b.disabled=false; b.textContent='送出審核';
+      if(!ok){ var m=document.getElementById('sMsg');
+        if(m){ m.textContent=message; m.className='note warn'; } }
+    }
+    function submitChain(){
+      var chain=Promise.resolve(), last=null;
+      todo.forEach(function(it){
+        chain=chain.then(function(){ return api('submit',{itemId:it.id}).then(function(d){ last=d; }); });
+      });
+      chain.then(function(){
+        if(last&&last.people){ S={people:last.people, rev:(S.rev||0)+1}; dirty=false; migrate(); render(); }
+        openSheet(p.id);
+      }).catch(function(e){ fin(false, errMsg(e,'送出失敗，再按一次')); });
+    }
+    if(dirty){ saveNow(function(ok,message){ if(ok) submitChain(); else fin(false,'先存檔沒成功：'+message); }); }
+    else submitChain();
+  }
 
   function onDone(){
     var b=this;
@@ -710,7 +749,7 @@
   });
 
   document.addEventListener('click', function(e){
-    var t=e.target && e.target.closest ? e.target.closest('[data-open],[data-sess],[data-del],[data-delitem],[data-submit],[data-approve],[data-reject],[data-withdraw],[data-unapprove]') : null;
+    var t=e.target && e.target.closest ? e.target.closest('[data-open],[data-sess],[data-del],[data-delitem],[data-submit],[data-saveitem],[data-approve],[data-reject],[data-withdraw],[data-unapprove]') : null;
     if(!t) return;
     if(t.hasAttribute('data-open')){
       var pid=t.getAttribute('data-open');
@@ -735,6 +774,16 @@
           saveNow(function(ok,msg2){ if(ok) act('submit',{itemId:ii.id}, pp.id);
                                      else say('先存檔沒成功', msg2); });
         } else act('submit',{itemId:ii.id}, pp.id);
+      } else if(t.hasAttribute('data-saveitem')){
+        if(!dirty){ var sm0=document.getElementById('sMsg');
+          if(sm0){ sm0.textContent='沒有要存的變更'; sm0.className='note'; } return; }
+        t.disabled=true; t.textContent='存檔中…';
+        saveNow(function(ok,message,cls){
+          // 成功時 saveNow 會重開表（按鈕已重畫）；失敗才要把這顆復原
+          if(!ok){ t.disabled=false; t.textContent='完成並存檔'; }
+          var sm=document.getElementById('sMsg');
+          if(sm){ sm.textContent=message; sm.className='note '+(cls||''); }
+        });
       } else if(t.hasAttribute('data-approve')){
         act('review',{itemId:ii.id, verdict:'approve'}, pp.id);
       } else if(t.hasAttribute('data-reject')){
@@ -838,7 +887,7 @@
 
   function saveNow(cb){
     if(saving){ cb(false,'存檔中，等一下','warn'); return; }
-    if(!me && !admin){ cb(false,'先按右上「我要填我的」登入','warn'); return; }
+    if(!me && !admin){ cb(false,'先點自己的卡片登入','warn'); return; }
     if(!openId){ cb(false,'沒有開啟中的人','warn'); return; }
     var p=find(openId);
     if(!p){ cb(false,'找不到這個人','warn'); return; }
