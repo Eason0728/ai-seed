@@ -392,8 +392,11 @@
       var code=String(v).trim();
       if(!code){ ctl.err('還沒輸入'); return; }
       ctl.busy('檢查中…');
-      api('adminAuth',{admin:code}).then(function(){
-        ctl.close(); admin=code; me=null; reviewMode=true; render();
+      api('adminAuth',{admin:code}).then(function(d){
+        ctl.close(); admin=code; me=null; reviewMode=true;
+        // 一定要換成完整版資料——進來之前抓的是路人版，看不到卡點與分析
+        if(d && d.people){ S={people:d.people, rev:(S.rev||0)+1}; migrate(); render(); }
+        else pull();          // 後端沒帶資料時的保險：自己再抓一次（這次會帶 admin）
       }).catch(function(e){ ctl.err(errMsg(e,'通行碼不對')); });
     });
   }

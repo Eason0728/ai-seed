@@ -379,7 +379,10 @@ function adminOk_(payload) {
 }
 
 function handleAdminAuth_(payload) {
-  return adminOk_(payload) ? { ok: true } : { ok: false, error: '通行碼不對' };
+  if (!adminOk_(payload)) return { ok: false, error: '通行碼不對' };
+  // 直接把完整資料一起回去。只回 { ok:true } 的話，前端會沿用進審核模式之前
+  // 抓到的「路人版」（沒有卡點／分析／四標準／原始分鐘數），審核時什麼都看不到。
+  return handleGetAll_(null, true);
 }
 
 function handleReview_(payload) {
