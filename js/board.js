@@ -404,6 +404,25 @@
     });
   }
 
+  // 誤按駁回時還原：狀態回「等審核」、清掉退回原因、次數 -1，
+  // 並把交件紀錄裡那一筆「退回」刪掉——學員的歷程不會留下按錯的痕跡
+  function askUndoReject(pp, ii){
+    ask({title:'撤銷退回？',
+         desc:'「'+esc(ii.topic||'這件事')+'」會回到<b>等審核</b>，'+
+              '退回原因清空、退回次數 -1，<b>交件紀錄裡那一筆「退回」也會刪掉</b>。<br>'+
+              '用在你按錯的時候——如果本來就該退回，不要用這個。',
+         ok:'撤銷退回', hold:true}, function(v, x, ctl){
+      ctl.busy('還原中…');
+      api('undoReject',{itemId:ii.id, to:'pending'}).then(function(d){
+        ctl.close();
+        S={people:d.people||[], rev:(S.rev||0)+1}; dirty=false; migrate(); render(); openSheet(pp.id);
+        say('已還原', '「'+esc(ii.topic||'這件事')+'」回到等審核。'+
+            (d.removedLog ? '交件紀錄裡那筆「退回」已經刪掉。'
+                          : '交件紀錄裡本來就沒有「退回」那一筆。'));
+      }).catch(function(e){ ctl.err(errMsg(e)); });
+    });
+  }
+
   function askPass(pid, err){
     var p=find(pid); if(!p) return;
     ask({title:esc(p.name||pid),
@@ -516,7 +535,8 @@
                '<span class="msg">收回後會從看板數字扣掉，並退回學員修改</span></div>';
       if(it.review==='rejected')
         return '<div class="ifoot"><button class="mini" data-approve="1" '+d+'>直接通過</button>'+
-               '<span class="msg">已退回給學員，等他改完重送</span></div>';
+               '<button class="mini ghost" data-undorej="1" '+d+'>撤銷退回</button>'+
+               '<span class="msg">已退回給學員，等他改完重送。按錯的話用「撤銷退回」還原</span></div>';
       return '<div class="ifoot"><button class="mini ghost" data-approve="1" '+d+'>直接通過</button>'+
              '<span class="msg">學員還沒送審——你自己代填的話可以直接通過</span></div>';
     }
@@ -807,7 +827,7 @@
   });
 
   document.addEventListener('click', function(e){
-    var t=e.target && e.target.closest ? e.target.closest('[data-open],[data-sess],[data-del],[data-delitem],[data-submit],[data-saveitem],[data-approve],[data-reject],[data-withdraw],[data-unapprove]') : null;
+    var t=e.target && e.target.closest ? e.target.closest('[data-open],[data-sess],[data-del],[data-delitem],[data-submit],[data-saveitem],[data-approve],[data-reject],[data-undorej],[data-withdraw],[data-unapprove]') : null;
     if(!t) return;
     if(t.hasAttribute('data-open')){
       var pid=t.getAttribute('data-open');
@@ -821,8 +841,8 @@
       act('setSess',{code:p.id, index:k}, p.id);
     }
     else if(t.hasAttribute('data-submit')||t.hasAttribute('data-approve')||
-            t.hasAttribute('data-reject')||t.hasAttribute('data-withdraw')||
-            t.hasAttribute('data-unapprove')){
+            t.hasAttribute('data-reject')||t.hasAttribute('data-undorej')||
+            t.hasAttribute('data-withdraw')||t.hasAttribute('data-unapprove')){
       var pp=find(t.getAttribute('data-id')); if(!pp) return;
       var ii=findItem(pp,t.getAttribute('data-item')); if(!ii) return;
       if(t.hasAttribute('data-submit')){
@@ -846,6 +866,8 @@
         act('review',{itemId:ii.id, verdict:'approve'}, pp.id);
       } else if(t.hasAttribute('data-reject')){
         askReject(pp, ii, '');
+      } else if(t.hasAttribute('data-undorej')){
+        askUndoReject(pp, ii);
       } else if(t.hasAttribute('data-withdraw')){
         act('withdraw',{itemId:ii.id}, pp.id);
       } else if(t.hasAttribute('data-unapprove')){
