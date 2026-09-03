@@ -7,5 +7,6 @@ V=$(date +%Y%m%d%H%M)
 sed -i '' -E "s|(href=\"css/board\.css)(\?v=[0-9]+)?\"|\1?v=$V\"|" index.html
 sed -i '' -E "s|(src=\"js/config\.js)(\?v=[0-9]+)?\"|\1?v=$V\"|" index.html
 sed -i '' -E "s|(src=\"js/board\.js)(\?v=[0-9]+)?\"|\1?v=$V\"|" index.html
+sed -i '' -E "s|(href=\"favicon\.svg)(\?v=[0-9]+)?\"|\1?v=$V\"|" index.html
 echo "版本戳 → $V"
 grep -n "?v=$V" index.html
