@@ -61,10 +61,11 @@ def svg():
             '  <g fill="#%02X%02X%02X">\n%s\n  </g>\n</svg>\n'
             % (radius, *BG, *FG, rects))
 
-open('favicon.svg', 'w').write(svg())
-for s in (16, 32):
-    png(s).convert('RGB').save('favicon-%d.png' % s, optimize=True)
-png(180, radius_ratio=0).convert('RGB').save('apple-touch-icon.png', optimize=True)
-png(512).convert('RGB').save('/private/tmp/claude-501/-Users-guoeason-Desktop-Claude/c161af32-ed18-4fda-abf9-c4403cab8acd/scratchpad/_icon-preview.png')
-png(64).convert('RGB').save('favicon.ico', sizes=[(16,16),(32,32),(48,48)])
-print('ok:', COLS, 'x', ROWS, 'grid')
+if __name__ == '__main__':
+    open('favicon.svg', 'w').write(svg())
+    for s in (16, 32):
+        png(s).convert('RGB').save('favicon-%d.png' % s, optimize=True)
+    png(180, radius_ratio=0).convert('RGB').save('apple-touch-icon.png', optimize=True)
+    png(512).convert('RGB').save('/private/tmp/claude-501/-Users-guoeason-Desktop-Claude/c161af32-ed18-4fda-abf9-c4403cab8acd/scratchpad/_icon-preview.png')
+    png(64).convert('RGB').save('favicon.ico', sizes=[(16,16),(32,32),(48,48)])
+    print('ok:', COLS, 'x', ROWS, 'grid')
