@@ -264,6 +264,9 @@
       return {cls:'', pre:'10/07 成果分享', ts:SHOW.getTime()};
     }
     if(pendingCount(p)>0) return {cls:'pend', text:'已送審，等審核'};
+    // 已通過但 Eason 還沒勾進度——不能繼續倒數，人家已經交了
+    var ticked=0; for(var t=0;t<4;t++) if(sess[t]) ticked++;
+    if(approvedCount(p)>ticked) return {cls:'ok', text:'第 '+DUE[k].n+' 堂已通過 ✓'};
     var now=Date.now(), due=DUE[k];
     if(now>due.d.getTime()){
       var days=Math.floor((now-due.d.getTime())/86400000)+1;
@@ -621,7 +624,7 @@
       '<div class="sbody">'+
         '<div class="pertop" id="perTop">'+sumHtml(p)+
           '<div><span class="lb" style="display:block;margin-bottom:.35rem">四堂進度 ＋ ★ 10/07 分享'+
-            (reviewMode?'（你可以改）':'')+'</span>'+
+            (reviewMode?'（通過之後記得勾這一堂，學員的倒數才會往下一堂走）':'')+'</span>'+
           '<span class="sess">'+LESSONS.map(function(l,k){
             return '<button data-sess="'+esc(p.id)+'" data-k="'+k+'" class="'+((p.sess&&p.sess[k])?'on':'')+'"'+
               (reviewMode?'':' disabled')+' title="'+(k<4?('第 '+l+' 堂交件通過'):'10/07 成果分享（現場或線上都算）')+'">'+l+'</button>';
