@@ -106,6 +106,8 @@ function doPost(e) {
     if (a === 'withdraw')   return respond_(handleWithdraw_(payload));
     if (a === 'review')     return respond_(handleReview_(payload));
     if (a === 'setSess')    return respond_(handleSetSess_(payload));
+    if (a === 'undoReject') return respond_(handleUndoReject_(payload));
+    if (a === 'log')        return respond_(handleLog_(payload));
     return respond_({ ok: false, error: '不支援的操作：' + a });
   } finally { lock.releaseLock(); }
 }
@@ -409,6 +411,53 @@ function handleReview_(payload) {
   } else return { ok: false, error: '不支援的判定' };
   sh.getRange(row, 23).setValue(new Date());
   return handleGetAll_(null, true);
+}
+
+// Eason 誤按駁回時的還原：把件退回到送審中，並把那一筆「退回」從交件紀錄拿掉
+function handleUndoReject_(payload) {
+  if (!adminOk_(payload)) return { ok: false, error: '通行碼不對' };
+  var id = String(payload.itemId || '');
+  var row = itemRow_(id);
+  if (!row) return { ok: false, error: '找不到這一件' };
+  var sh = sheet_(SH_ITEMS);
+  var back = str_(payload.to) || 'pending';   // 預設還原成「等審核」
+  if (['draft', 'pending', 'approved'].indexOf(back) < 0) return { ok: false, error: '不支援的狀態' };
+  sh.getRange(row, 20).setValue(back);
+  sh.getRange(row, 21).setValue('');                                   // 清掉退回原因
+  var c = Number(sh.getRange(row, 22).getValue() || 0);
+  sh.getRange(row, 22).setValue(c > 0 ? c - 1 : 0);                    // 退回次數 -1
+  sh.getRange(row, 23).setValue(new Date());
+  // 從交件紀錄刪掉這件最近一筆「退回」（由後往前找，只刪一筆）
+  var lg = sheet_(SH_LOG), last = lg.getLastRow(), removed = 0;
+  if (last >= 2) {
+    var vals = lg.getRange(2, 1, last - 1, L_HEAD.length).getValues();
+    for (var i = vals.length - 1; i >= 0; i--) {
+      if (String(vals[i][3]).trim() === id && String(vals[i][4]).trim() === '退回') {
+        lg.deleteRow(i + 2); removed = 1; break;
+      }
+    }
+  }
+  var r = handleGetAll_(null, true);
+  r.removedLog = removed;
+  return r;
+}
+
+// 讀某一件的交件紀錄（Eason 專用，用來查發生過什麼）
+function handleLog_(payload) {
+  if (!adminOk_(payload)) return { ok: false, error: '通行碼不對' };
+  var id = String(payload.itemId || '').trim();
+  var lg = sheet_(SH_LOG), last = lg.getLastRow(), out = [];
+  if (last >= 2) {
+    var vals = lg.getRange(2, 1, last - 1, L_HEAD.length).getValues();
+    vals.forEach(function (v, i) {
+      if (!id || String(v[3]).trim() === id || String(v[1]).trim() === id) {
+        out.push({ row: i + 2, time: dstr_(v[0]) + ' ' + (Object.prototype.toString.call(v[0]) === '[object Date]'
+          ? Utilities.formatDate(v[0], 'Asia/Taipei', 'HH:mm:ss') : ''),
+          code: str_(v[1]), name: str_(v[2]), itemId: str_(v[3]), action: str_(v[4]), note: str_(v[5]) });
+      }
+    });
+  }
+  return { ok: true, log: out };
 }
 
 function handleSetSess_(payload) {
