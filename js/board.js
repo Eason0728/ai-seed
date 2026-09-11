@@ -311,7 +311,7 @@
   function peopleHtml(){
     if(!S.people.length) return '<div class="empty">還沒有人。按下面「＋ 新增學員」把 16 個人加進來。</div>';
     return '<div class="people">'+S.people.map(function(p,i){
-      var s=personSaved(p), st=personStatus(p), n=(p.items||[]).length;
+      var s=personSaved(p), all=anySaved(p), st=personStatus(p), n=(p.items||[]).length;
       var first=(p.items&&p.items[0]&&p.items[0].topic)||'';
       var bars=(p.sess||[]).map(function(x){ return '<i class="'+(x?'on':'')+'"></i>'; }).join('');
       var topicLine = n>1
@@ -323,9 +323,13 @@
           (np?'<span class="pflag">待審 '+np+'</span>':'')+
           (nr?'<span class="pflag rej">退回 '+nr+'</span>':'')+
           '<span class="pill st'+st+'">'+STATUS[st]+'</span></span>'+
-        '<span class="pmain">'+(s===null
-          ? '<span class="v none">—</span><span class="u">還沒填時間帳</span>'
-          : '<span class="v">'+fmt(s)+'</span><span class="u">分鐘 / 月</span>')+'</span>'+
+        // 填了但還沒通過的人，卡片本來寫「還沒填時間帳」——那是假的，
+        // 人家填了，只是件還沒通過。看的人會以為他沒做，實際上是卡在審核。
+        '<span class="pmain">'+(s!==null
+          ? '<span class="v">'+fmt(s)+'</span><span class="u">分鐘 / 月</span>'
+          : (all!==null
+              ? '<span class="v none">—</span><span class="u">填了，還沒通過審核</span>'
+              : '<span class="v none">—</span><span class="u">還沒填時間帳</span>'))+'</span>'+
         '<span class="ptopic'+(first?'':' empty')+'">'+topicLine+'</span>'+
         '<span class="pbars">'+bars+'</span>'+dueHtml(p)+'</button>';
     }).join('')+'</div>';
