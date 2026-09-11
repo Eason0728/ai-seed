@@ -256,17 +256,25 @@
     {n:'04', d:new Date(2026,8,28,23,59,59)}];
   var SHOW=new Date(2026,9,7,23,59,59);   // 10/07 成果分享
 
+  // 這個人下一堂要交第幾堂（0–3 的序號）；四堂都勾完了回 -1
+  function nextLesson(p){
+    var sess=p.sess||[];
+    for(var i=0;i<4;i++) if(!sess[i]) return i;
+    return -1;
+  }
+
   function dueState(p){
-    var sess=p.sess||[], k=-1;
-    for(var i=0;i<4;i++){ if(!sess[i]){ k=i; break; } }
+    var sess=p.sess||[], k=nextLesson(p);
     if(k===-1){
       if(sess[4]) return {cls:'ok', text:'四堂＋10/07 分享 全部完成'};
       return {cls:'', pre:'10/07 成果分享', ts:SHOW.getTime()};
     }
     if(pendingCount(p)>0) return {cls:'pend', text:'已送審，等審核'};
-    // 已通過但 Eason 還沒勾進度——不能繼續倒數，人家已經交了
+    // 第 01 堂通過了、Eason 還沒勾進度——不要再倒數，人家已經交了。
+    // 只認第 01 堂：一個人可以有不只一件事，原本用「通過幾件 > 勾了幾堂」去推，
+    // 兩件都通過的人會被判成「第 02 堂已通過 ✓」，第 02 堂的倒數和逾期全被蓋掉。
     var ticked=0; for(var t=0;t<4;t++) if(sess[t]) ticked++;
-    if(approvedCount(p)>ticked) return {cls:'ok', text:'第 '+DUE[k].n+' 堂已通過 ✓'};
+    if(ticked===0 && approvedCount(p)>0) return {cls:'ok', text:'第 01 堂已通過 ✓'};
     var now=Date.now(), due=DUE[k];
     if(now>due.d.getTime()){
       var days=Math.floor((now-due.d.getTime())/86400000)+1;
@@ -543,9 +551,18 @@
     if(it.review==='pending')
       return '<div class="ifoot"><button class="mini ghost" data-withdraw="1" '+d+'>撤回修改</button>'+
              '<span class="msg">已送出，等 Eason 審核。要改的話先撤回</span></div>';
-    if(it.review==='approved')
-      return '<div class="ifoot"><button class="mini ghost" data-withdraw="1" '+d+'>我要修改</button>'+
-             '<span class="msg">已通過並計入看板。改了要重新送審，期間會先從數字扣掉</span></div>';
+    if(it.review==='approved'){
+      // 第 01 堂通過之後這件就鎖住，下一堂的資料卡在這裡交不出去。
+      // 按鈕直接寫「填第 0N 堂進度」，學員才知道第 02 堂交的就是這一件的最新進度。
+      var L=nextLesson(p);
+      return '<div class="ifoot"><button class="mini" data-withdraw="1" '+d+'>'+
+             (L>=0 ? '填第 '+LESSONS[L]+' 堂進度' : '我要修改')+'</button>'+
+             '<span class="msg">'+
+             (L>=0 ? '第 '+LESSONS[L]+' 堂交的就是這一件的最新時間帳和四格分析。按這顆解鎖，'+
+                     '改完再按最下面的「送出審核」——解鎖期間分鐘數會先從看板扣掉，通過就加回來'
+                   : '已通過並計入看板。改了要重新送審，期間會先從數字扣掉')+
+             '</span></div>';
+    }
     // draft / rejected：這裡存草稿；交件走最下面的「送出審核」
     return '<div class="ifoot"><button class="mini" data-saveitem="1" '+d+'>完成並存檔</button>'+
            '<span class="msg">存檔＝存草稿，隨時可以再改。都填好了，按最下面的「送出審核」交件</span></div>';
@@ -701,6 +718,31 @@
   function closeSheet(){ openId=null; document.getElementById('layer').innerHTML=''; render(); }
   document.addEventListener('keydown', function(e){ if(e.key==='Escape'&&openId) closeSheet(); });
 
+  // 件全部停在「已通過」時的送審入口：一次把它們解鎖成草稿，
+  // 學員改完時間帳和四格分析，再按一次「送出審核」交這一堂。
+  function unlockForNext(p, appr){
+    var L=nextLesson(p), n=appr.length;
+    ask({title:(L>=0 ? '要交第 '+LESSONS[L]+' 堂嗎？' : '要改已通過的資料嗎？'),
+         desc:(L>=0
+            ? '第 '+LESSONS[L]+' 堂交的就是同一件事的<strong>最新時間帳和四格分析</strong>。'+
+              '按下去會把已通過的 <b>'+n+'</b> 件解鎖，你改完再按一次「送出審核」。'
+            : '按下去會把已通過的 <b>'+n+'</b> 件解鎖讓你改，改完再按一次「送出審核」。')+
+           '<br>解鎖期間這 '+n+' 件的分鐘數會先從看板扣掉，Eason 通過之後加回來。',
+         ok:'解鎖，我要填', hold:true}, function(v, x, ctl){
+      if(!v){ ctl.close(); return; }
+      ctl.busy('解鎖中…');
+      var chain=Promise.resolve(), last=null;
+      appr.forEach(function(it){
+        chain=chain.then(function(){ return api('withdraw',{itemId:it.id}).then(function(d){ last=d; }); });
+      });
+      chain.then(function(){
+        ctl.close();
+        if(last&&last.people) S={people:last.people, rev:(S.rev||0)+1};
+        dirty=false; migrate(); render(); openSheet(p.id);
+      }).catch(function(e){ ctl.err(errMsg(e,'解鎖失敗，再按一次')); });
+    });
+  }
+
   // 表底的「送出審核」：把 draft／退回、且有題目的件全部交出去
   function onSubmitAll(){
     var b=this, p=find(openId); if(!p) return;
@@ -713,8 +755,15 @@
       return (rv==='draft'||rv==='rejected') && !String(it.topic||'').trim();
     });
     if(!todo.length){
-      say(noTopic?'還不能送審':'沒有可以送審的件',
-          noTopic?'先填「題目」那一格，存檔之後再送。':'每一件都已經送出或通過了。');
+      if(noTopic){ say('還不能送審','先填「題目」那一格，存檔之後再送。'); return; }
+      var appr=(p.items||[]).filter(function(it){ return (it.review||'draft')==='approved'; });
+      var pend=(p.items||[]).filter(function(it){ return it.review==='pending'; });
+      // 件全部停在「已通過」＝下一堂根本交不出去。這裡丟一句「沒有可以送審的件」
+      // 等於把人擋在門外，改成直接把件解鎖，學員才填得了第 02 堂。
+      if(appr.length && !pend.length){ unlockForNext(p, appr); return; }
+      say('沒有可以送審的件', pend.length
+            ? '這 '+pend.length+' 件已經送出去了，等 Eason 審核。要改的話先按件裡面的「撤回修改」。'
+            : '每一件都已經送出或通過了。');
       return;
     }
     b.disabled=true; b.textContent='送出中…';
@@ -840,7 +889,8 @@
       var k=parseInt(t.getAttribute('data-k'),10);
       act('setSess',{code:p.id, index:k}, p.id);
     }
-    else if(t.hasAttribute('data-submit')||t.hasAttribute('data-approve')||
+    else if(t.hasAttribute('data-submit')||t.hasAttribute('data-saveitem')||
+            t.hasAttribute('data-approve')||
             t.hasAttribute('data-reject')||t.hasAttribute('data-undorej')||
             t.hasAttribute('data-withdraw')||t.hasAttribute('data-unapprove')){
       var pp=find(t.getAttribute('data-id')); if(!pp) return;
