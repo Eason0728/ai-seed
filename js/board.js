@@ -720,16 +720,17 @@
 
   // 件全部停在「已通過」時的送審入口：一次把它們解鎖成草稿，
   // 學員改完時間帳和四格分析，再按一次「送出審核」交這一堂。
-  function unlockForNext(p, appr){
+  function unlockForNext(p, appr, nDraft, onCancel){
     var L=nextLesson(p), n=appr.length;
     ask({title:(L>=0 ? '要交第 '+LESSONS[L]+' 堂嗎？' : '要改已通過的資料嗎？'),
          desc:(L>=0
             ? '第 '+LESSONS[L]+' 堂交的就是同一件事的<strong>最新時間帳和四格分析</strong>。'+
               '按下去會把已通過的 <b>'+n+'</b> 件解鎖，你改完再按一次「送出審核」。'
             : '按下去會把已通過的 <b>'+n+'</b> 件解鎖讓你改，改完再按一次「送出審核」。')+
-           '<br>解鎖期間這 '+n+' 件的分鐘數會先從看板扣掉，Eason 通過之後加回來。',
+           '<br>解鎖期間這 '+n+' 件的分鐘數會先從看板扣掉，Eason 通過之後加回來。'+
+           (nDraft ? '<br>按「取消」的話，就只送還沒送過的那 <b>'+nDraft+'</b> 件。' : ''),
          ok:'解鎖，我要填', hold:true}, function(v, x, ctl){
-      if(!v){ ctl.close(); return; }
+      if(!v){ ctl.close(); if(onCancel) onCancel(); return; }
       ctl.busy('解鎖中…');
       var chain=Promise.resolve(), last=null;
       appr.forEach(function(it){
@@ -745,7 +746,25 @@
 
   // 表底的「送出審核」：把 draft／退回、且有題目的件全部交出去
   function onSubmitAll(){
-    var b=this, p=find(openId); if(!p) return;
+    var p=find(openId); if(!p) return;
+    var todo=(p.items||[]).filter(function(it){
+      var rv=it.review||'draft';
+      return (rv==='draft'||rv==='rejected') && String(it.topic||'').trim();
+    });
+    var appr=(p.items||[]).filter(function(it){ return (it.review||'draft')==='approved'; });
+    // 有已通過的件＝這一堂的時間帳和分析鎖在裡面，一定要先問。
+    // 本來只在「一件草稿都沒有」時才問，結果一人兩件（一件已通過、一件還是草稿）的人
+    // 按下去只默默送出草稿那件，畫面連個視窗都沒有，這一堂的數字根本沒交出去。
+    if(appr.length){
+      unlockForNext(p, appr, todo.length, function(){ if(todo.length) doSubmit(); });
+      return;
+    }
+    doSubmit();
+  }
+
+  // 真的把 todo 那幾件送出去（上面問完才會走到這裡）
+  function doSubmit(){
+    var b=document.getElementById('submitAll'), p=find(openId); if(!b||!p) return;
     var todo=(p.items||[]).filter(function(it){
       var rv=it.review||'draft';
       return (rv==='draft'||rv==='rejected') && String(it.topic||'').trim();
@@ -755,15 +774,12 @@
       return (rv==='draft'||rv==='rejected') && !String(it.topic||'').trim();
     });
     if(!todo.length){
-      if(noTopic){ say('還不能送審','先填「題目」那一格，存檔之後再送。'); return; }
-      var appr=(p.items||[]).filter(function(it){ return (it.review||'draft')==='approved'; });
-      var pend=(p.items||[]).filter(function(it){ return it.review==='pending'; });
-      // 件全部停在「已通過」＝下一堂根本交不出去。這裡丟一句「沒有可以送審的件」
-      // 等於把人擋在門外，改成直接把件解鎖，學員才填得了第 02 堂。
-      if(appr.length && !pend.length){ unlockForNext(p, appr); return; }
-      say('沒有可以送審的件', pend.length
-            ? '這 '+pend.length+' 件已經送出去了，等 Eason 審核。要改的話先按件裡面的「撤回修改」。'
-            : '每一件都已經送出或通過了。');
+      var pend2=(p.items||[]).filter(function(it){ return it.review==='pending'; });
+      say(noTopic?'還不能送審':'沒有可以送審的件',
+          noTopic ? '先填「題目」那一格，存檔之後再送。'
+                  : (pend2.length
+                      ? '這 '+pend2.length+' 件已經送出去了，等 Eason 審核。要改的話先按件裡面的「撤回修改」。'
+                      : '每一件都已經送出或通過了。'));
       return;
     }
     b.disabled=true; b.textContent='送出中…';
