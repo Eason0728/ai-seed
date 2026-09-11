@@ -263,13 +263,20 @@
     return -1;
   }
 
+  // 這個人現在送出去的件，是在交哪一堂——照他「四堂進度」勾到哪裡推。
+  // 四堂都勾完了就是 10/07 那一份。
+  function submitLesson(p){
+    var L=nextLesson(p);
+    return L>=0 ? ('第 '+LESSONS[L]+' 堂') : '10/07 分享';
+  }
+
   function dueState(p){
     var sess=p.sess||[], k=nextLesson(p);
     if(k===-1){
       if(sess[4]) return {cls:'ok', text:'四堂＋10/07 分享 全部完成'};
       return {cls:'', pre:'10/07 成果分享', ts:SHOW.getTime()};
     }
-    if(pendingCount(p)>0) return {cls:'pend', text:'已送審，等審核'};
+    if(pendingCount(p)>0) return {cls:'pend', text:'第 '+DUE[k].n+' 堂已送審，等審核'};
     // 第 01 堂通過了、Eason 還沒勾進度——不要再倒數，人家已經交了。
     // 只認第 01 堂：一個人可以有不只一件事，原本用「通過幾件 > 勾了幾堂」去推，
     // 兩件都通過的人會被判成「第 02 堂已通過 ✓」，第 02 堂的倒數和逾期全被蓋掉。
@@ -541,7 +548,8 @@
       if(it.review==='pending')
         return '<div class="ifoot"><button class="mini" data-approve="1" '+d+'>通過</button>'+
                '<button class="mini no" data-reject="1" '+d+'>駁回…</button>'+
-               '<span class="msg">通過之後這件的數字才會計入看板</span></div>';
+               '<span class="msg">這是<b>'+esc(submitLesson(p))+'</b>的交件。'+
+               '通過之後這件的數字才會計入看板，記得上面那排也勾起來</span></div>';
       if(it.review==='approved')
         return '<div class="ifoot"><button class="mini ghost" data-unapprove="1" '+d+'>收回通過</button>'+
                '<span class="msg">收回後會從看板數字扣掉，並退回學員修改</span></div>';
@@ -554,7 +562,8 @@
     }
     if(it.review==='pending')
       return '<div class="ifoot"><button class="mini ghost" data-withdraw="1" '+d+'>撤回修改</button>'+
-             '<span class="msg">已送出，等 Eason 審核。要改的話先撤回</span></div>';
+             '<span class="msg">這是<b>'+esc(submitLesson(p))+'</b>的交件，已送出，等 Eason 審核。'+
+             '要改的話先撤回</span></div>';
     if(it.review==='approved'){
       // 第 01 堂通過之後這件就鎖住，下一堂的資料卡在這裡交不出去。
       // 按鈕直接寫「填第 0N 堂進度」，學員才知道第 02 堂交的就是這一件的最新進度。
@@ -603,6 +612,10 @@
     return '<div class="item'+(lk?' locked':'')+'" id="it-'+esc(it.id)+'">'+
       '<div class="ihd"><span class="n">第 '+(idx+1)+' 件'+(total>1?('／共 '+total+' 件'):'')+'</span>'+
         '<span class="rv rv-'+rv+'" data-rvpill="'+esc(it.id)+'">'+REVIEW[rv]+'</span>'+
+        // 送出去和被退回的件掛上堂數，Eason 審的時候才知道這是在交第幾堂
+        ((rv==='pending'||rv==='rejected')
+          ? '<span class="lsn" title="照這個人的四堂進度推算，這一件交的是這一堂">'+
+            esc(submitLesson(p))+'</span>' : '')+
         (anaFilled(it)===4?'<span class="anaflag" title="四格分析已填滿">分析 ✓</span>':'')+
         (it.rejectCount?'<span class="rejn" title="被退回過的次數">退回 '+it.rejectCount+'</span>':'')+
         '<span class="pill st'+(it.status||0)+'" data-ipill="'+esc(it.id)+'">'+STATUS[it.status||0]+'</span>'+
