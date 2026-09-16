@@ -532,13 +532,16 @@
                '<span class="msg">通過之後這件的數字才會計入看板</span></div>';
       if(it.review==='approved')
         return '<div class="ifoot"><button class="mini ghost" data-unapprove="1" '+d+'>收回通過</button>'+
-               '<span class="msg">收回後會從看板數字扣掉，並退回學員修改</span></div>';
+               '<button class="mini no" data-reject="1" '+d+'>駁回…</button>'+
+               '<span class="msg">收回通過＝只從看板數字扣掉、不留原因；駁回＝寫一句原因退給學員改</span></div>';
       if(it.review==='rejected')
         return '<div class="ifoot"><button class="mini" data-approve="1" '+d+'>直接通過</button>'+
                '<button class="mini ghost" data-undorej="1" '+d+'>撤銷退回</button>'+
                '<span class="msg">已退回給學員，等他改完重送。按錯的話用「撤銷退回」還原</span></div>';
       return '<div class="ifoot"><button class="mini ghost" data-approve="1" '+d+'>直接通過</button>'+
-             '<span class="msg">學員還沒送審——你自己代填的話可以直接通過</span></div>';
+             '<button class="mini no" data-reject="1" '+d+'>駁回…</button>'+
+             '<span class="msg">學員還沒送審，或你剛按過「收回通過」——可以直接通過，'+
+             '也可以寫原因駁回，他才知道要改什麼</span></div>';
     }
     if(it.review==='pending')
       return '<div class="ifoot"><button class="mini ghost" data-withdraw="1" '+d+'>撤回修改</button>'+
