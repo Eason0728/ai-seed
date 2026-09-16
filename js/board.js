@@ -256,17 +256,32 @@
     {n:'04', d:new Date(2026,8,28,23,59,59)}];
   var SHOW=new Date(2026,9,7,23,59,59);   // 10/07 成果分享
 
+  // 這個人下一堂要交第幾堂（0–3 的序號）；四堂都勾完了回 -1
+  function nextLesson(p){
+    var sess=p.sess||[];
+    for(var i=0;i<4;i++) if(!sess[i]) return i;
+    return -1;
+  }
+
+  // 這個人現在送出去的件，是在交哪一堂——照他「四堂進度」勾到哪裡推。
+  // 四堂都勾完了就是 10/07 那一份。
+  function submitLesson(p){
+    var L=nextLesson(p);
+    return L>=0 ? ('第 '+LESSONS[L]+' 堂') : '10/07 分享';
+  }
+
   function dueState(p){
-    var sess=p.sess||[], k=-1;
-    for(var i=0;i<4;i++){ if(!sess[i]){ k=i; break; } }
+    var sess=p.sess||[], k=nextLesson(p);
     if(k===-1){
       if(sess[4]) return {cls:'ok', text:'四堂＋10/07 分享 全部完成'};
       return {cls:'', pre:'10/07 成果分享', ts:SHOW.getTime()};
     }
-    if(pendingCount(p)>0) return {cls:'pend', text:'已送審，等審核'};
-    // 已通過但 Eason 還沒勾進度——不能繼續倒數，人家已經交了
+    if(pendingCount(p)>0) return {cls:'pend', text:'第 '+DUE[k].n+' 堂已送審，等審核'};
+    // 第 01 堂通過了、Eason 還沒勾進度——不要再倒數，人家已經交了。
+    // 只認第 01 堂：一個人可以有不只一件事，原本用「通過幾件 > 勾了幾堂」去推，
+    // 兩件都通過的人會被判成「第 02 堂已通過 ✓」，第 02 堂的倒數和逾期全被蓋掉。
     var ticked=0; for(var t=0;t<4;t++) if(sess[t]) ticked++;
-    if(approvedCount(p)>ticked) return {cls:'ok', text:'第 '+DUE[k].n+' 堂已通過 ✓'};
+    if(ticked===0 && approvedCount(p)>0) return {cls:'ok', text:'第 01 堂已通過 ✓'};
     var now=Date.now(), due=DUE[k];
     if(now>due.d.getTime()){
       var days=Math.floor((now-due.d.getTime())/86400000)+1;
@@ -303,7 +318,7 @@
   function peopleHtml(){
     if(!S.people.length) return '<div class="empty">還沒有人。按下面「＋ 新增學員」把 16 個人加進來。</div>';
     return '<div class="people">'+S.people.map(function(p,i){
-      var s=personSaved(p), st=personStatus(p), n=(p.items||[]).length;
+      var s=personSaved(p), all=anySaved(p), st=personStatus(p), n=(p.items||[]).length;
       var first=(p.items&&p.items[0]&&p.items[0].topic)||'';
       var bars=(p.sess||[]).map(function(x){ return '<i class="'+(x?'on':'')+'"></i>'; }).join('');
       var topicLine = n>1
@@ -315,9 +330,13 @@
           (np?'<span class="pflag">待審 '+np+'</span>':'')+
           (nr?'<span class="pflag rej">退回 '+nr+'</span>':'')+
           '<span class="pill st'+st+'">'+STATUS[st]+'</span></span>'+
-        '<span class="pmain">'+(s===null
-          ? '<span class="v none">—</span><span class="u">還沒填時間帳</span>'
-          : '<span class="v">'+fmt(s)+'</span><span class="u">分鐘 / 月</span>')+'</span>'+
+        // 填了但還沒通過的人，卡片本來寫「還沒填時間帳」——那是假的，
+        // 人家填了，只是件還沒通過。看的人會以為他沒做，實際上是卡在審核。
+        '<span class="pmain">'+(s!==null
+          ? '<span class="v">'+fmt(s)+'</span><span class="u">分鐘 / 月</span>'
+          : (all!==null
+              ? '<span class="v none">—</span><span class="u">填了，還沒通過審核</span>'
+              : '<span class="v none">—</span><span class="u">還沒填時間帳</span>'))+'</span>'+
         '<span class="ptopic'+(first?'':' empty')+'">'+topicLine+'</span>'+
         '<span class="pbars">'+bars+'</span>'+dueHtml(p)+'</button>';
     }).join('')+'</div>';
@@ -529,7 +548,8 @@
       if(it.review==='pending')
         return '<div class="ifoot"><button class="mini" data-approve="1" '+d+'>通過</button>'+
                '<button class="mini no" data-reject="1" '+d+'>駁回…</button>'+
-               '<span class="msg">通過之後這件的數字才會計入看板</span></div>';
+               '<span class="msg">這是<b>'+esc(submitLesson(p))+'</b>的交件。'+
+               '通過之後這件的數字才會計入看板，記得上面那排也勾起來</span></div>';
       if(it.review==='approved')
         return '<div class="ifoot"><button class="mini ghost" data-unapprove="1" '+d+'>收回通過</button>'+
                '<button class="mini no" data-reject="1" '+d+'>駁回…</button>'+
@@ -545,10 +565,20 @@
     }
     if(it.review==='pending')
       return '<div class="ifoot"><button class="mini ghost" data-withdraw="1" '+d+'>撤回修改</button>'+
-             '<span class="msg">已送出，等 Eason 審核。要改的話先撤回</span></div>';
-    if(it.review==='approved')
-      return '<div class="ifoot"><button class="mini ghost" data-withdraw="1" '+d+'>我要修改</button>'+
-             '<span class="msg">已通過並計入看板。改了要重新送審，期間會先從數字扣掉</span></div>';
+             '<span class="msg">這是<b>'+esc(submitLesson(p))+'</b>的交件，已送出，等 Eason 審核。'+
+             '要改的話先撤回</span></div>';
+    if(it.review==='approved'){
+      // 第 01 堂通過之後這件就鎖住，下一堂的資料卡在這裡交不出去。
+      // 按鈕直接寫「填第 0N 堂進度」，學員才知道第 02 堂交的就是這一件的最新進度。
+      var L=nextLesson(p);
+      return '<div class="ifoot"><button class="mini" data-withdraw="1" '+d+'>'+
+             (L>=0 ? '填第 '+LESSONS[L]+' 堂進度' : '我要修改')+'</button>'+
+             '<span class="msg">'+
+             (L>=0 ? '第 '+LESSONS[L]+' 堂交的就是這一件的最新時間帳和四格分析。按這顆解鎖，'+
+                     '改完再按最下面的「送出審核」——解鎖期間分鐘數會先從看板扣掉，通過就加回來'
+                   : '已通過並計入看板。改了要重新送審，期間會先從數字扣掉')+
+             '</span></div>';
+    }
     // draft / rejected：這裡存草稿；交件走最下面的「送出審核」
     return '<div class="ifoot"><button class="mini" data-saveitem="1" '+d+'>完成並存檔</button>'+
            '<span class="msg">存檔＝存草稿，隨時可以再改。都填好了，按最下面的「送出審核」交件</span></div>';
@@ -585,6 +615,10 @@
     return '<div class="item'+(lk?' locked':'')+'" id="it-'+esc(it.id)+'">'+
       '<div class="ihd"><span class="n">第 '+(idx+1)+' 件'+(total>1?('／共 '+total+' 件'):'')+'</span>'+
         '<span class="rv rv-'+rv+'" data-rvpill="'+esc(it.id)+'">'+REVIEW[rv]+'</span>'+
+        // 送出去和被退回的件掛上堂數，Eason 審的時候才知道這是在交第幾堂
+        ((rv==='pending'||rv==='rejected')
+          ? '<span class="lsn" title="照這個人的四堂進度推算，這一件交的是這一堂">'+
+            esc(submitLesson(p))+'</span>' : '')+
         (anaFilled(it)===4?'<span class="anaflag" title="四格分析已填滿">分析 ✓</span>':'')+
         (it.rejectCount?'<span class="rejn" title="被退回過的次數">退回 '+it.rejectCount+'</span>':'')+
         '<span class="pill st'+(it.status||0)+'" data-ipill="'+esc(it.id)+'">'+STATUS[it.status||0]+'</span>'+
@@ -704,9 +738,53 @@
   function closeSheet(){ openId=null; document.getElementById('layer').innerHTML=''; render(); }
   document.addEventListener('keydown', function(e){ if(e.key==='Escape'&&openId) closeSheet(); });
 
+  // 件全部停在「已通過」時的送審入口：一次把它們解鎖成草稿，
+  // 學員改完時間帳和四格分析，再按一次「送出審核」交這一堂。
+  function unlockForNext(p, appr, nDraft, onCancel){
+    var L=nextLesson(p), n=appr.length;
+    ask({title:(L>=0 ? '要交第 '+LESSONS[L]+' 堂嗎？' : '要改已通過的資料嗎？'),
+         desc:(L>=0
+            ? '第 '+LESSONS[L]+' 堂交的就是同一件事的<strong>最新時間帳和四格分析</strong>。'+
+              '按下去會把已通過的 <b>'+n+'</b> 件解鎖，你改完再按一次「送出審核」。'
+            : '按下去會把已通過的 <b>'+n+'</b> 件解鎖讓你改，改完再按一次「送出審核」。')+
+           '<br>解鎖期間這 '+n+' 件的分鐘數會先從看板扣掉，Eason 通過之後加回來。'+
+           (nDraft ? '<br>按「取消」的話，就只送還沒送過的那 <b>'+nDraft+'</b> 件。' : ''),
+         ok:'解鎖，我要填', hold:true}, function(v, x, ctl){
+      if(!v){ ctl.close(); if(onCancel) onCancel(); return; }
+      ctl.busy('解鎖中…');
+      var chain=Promise.resolve(), last=null;
+      appr.forEach(function(it){
+        chain=chain.then(function(){ return api('withdraw',{itemId:it.id}).then(function(d){ last=d; }); });
+      });
+      chain.then(function(){
+        ctl.close();
+        if(last&&last.people) S={people:last.people, rev:(S.rev||0)+1};
+        dirty=false; migrate(); render(); openSheet(p.id);
+      }).catch(function(e){ ctl.err(errMsg(e,'解鎖失敗，再按一次')); });
+    });
+  }
+
   // 表底的「送出審核」：把 draft／退回、且有題目的件全部交出去
   function onSubmitAll(){
-    var b=this, p=find(openId); if(!p) return;
+    var p=find(openId); if(!p) return;
+    var todo=(p.items||[]).filter(function(it){
+      var rv=it.review||'draft';
+      return (rv==='draft'||rv==='rejected') && String(it.topic||'').trim();
+    });
+    var appr=(p.items||[]).filter(function(it){ return (it.review||'draft')==='approved'; });
+    // 有已通過的件＝這一堂的時間帳和分析鎖在裡面，一定要先問。
+    // 本來只在「一件草稿都沒有」時才問，結果一人兩件（一件已通過、一件還是草稿）的人
+    // 按下去只默默送出草稿那件，畫面連個視窗都沒有，這一堂的數字根本沒交出去。
+    if(appr.length){
+      unlockForNext(p, appr, todo.length, function(){ if(todo.length) doSubmit(); });
+      return;
+    }
+    doSubmit();
+  }
+
+  // 真的把 todo 那幾件送出去（上面問完才會走到這裡）
+  function doSubmit(){
+    var b=document.getElementById('submitAll'), p=find(openId); if(!b||!p) return;
     var todo=(p.items||[]).filter(function(it){
       var rv=it.review||'draft';
       return (rv==='draft'||rv==='rejected') && String(it.topic||'').trim();
@@ -716,8 +794,12 @@
       return (rv==='draft'||rv==='rejected') && !String(it.topic||'').trim();
     });
     if(!todo.length){
+      var pend2=(p.items||[]).filter(function(it){ return it.review==='pending'; });
       say(noTopic?'還不能送審':'沒有可以送審的件',
-          noTopic?'先填「題目」那一格，存檔之後再送。':'每一件都已經送出或通過了。');
+          noTopic ? '先填「題目」那一格，存檔之後再送。'
+                  : (pend2.length
+                      ? '這 '+pend2.length+' 件已經送出去了，等 Eason 審核。要改的話先按件裡面的「撤回修改」。'
+                      : '每一件都已經送出或通過了。'));
       return;
     }
     b.disabled=true; b.textContent='送出中…';
@@ -843,7 +925,8 @@
       var k=parseInt(t.getAttribute('data-k'),10);
       act('setSess',{code:p.id, index:k}, p.id);
     }
-    else if(t.hasAttribute('data-submit')||t.hasAttribute('data-approve')||
+    else if(t.hasAttribute('data-submit')||t.hasAttribute('data-saveitem')||
+            t.hasAttribute('data-approve')||
             t.hasAttribute('data-reject')||t.hasAttribute('data-undorej')||
             t.hasAttribute('data-withdraw')||t.hasAttribute('data-unapprove')){
       var pp=find(t.getAttribute('data-id')); if(!pp) return;
