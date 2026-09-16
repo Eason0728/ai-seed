@@ -256,6 +256,8 @@ textarea.off{display:none}
 .anaout.demo .dtag{position:absolute; top:-.55rem; right:.6rem; font-family:"IBM Plex Mono",monospace;
   font-size:.68rem; font-weight:600; color:var(--ink-3); background:var(--surface);
   border:1px solid var(--line-2); border-radius:2px; padding:.02rem .35rem}
+.anatip{margin:0 0 .15rem; color:var(--ink-3); font-size:.88rem; line-height:1.6}
+.anatip strong{color:var(--ink-2)}
 .anamiss{margin-top:.5rem; color:var(--ink-3); font-size:.92rem; line-height:1.6}
 .anaflag{font-family:"IBM Plex Mono",monospace; font-size:.78rem; padding:.05rem .35rem;
   border-radius:2px; background:var(--s2-bg); color:var(--s2); font-weight:600}

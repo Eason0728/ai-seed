@@ -605,7 +605,13 @@
     } else {
       out='<div class="anamiss">還差 '+(4-n)+' 格。<strong>四格缺一格，交出去就會被問「所以呢」。</strong></div>';
     }
-    return '<div class="ana" data-ana-box="'+esc(it.id)+'">'+rows+out+'</div>';
+    // 有人以為「勾了沒有卡點就不用填四格」——兩個問的不是同一件事，四格是交件本體。
+    // 只對還沒填滿的人顯示，填完的不用再被念一次。
+    var tip = (n<4)
+      ? '<div class="anatip">就算勾了「這件目前沒有卡點」，這四格還是要填——'+
+        '<strong>卡點問的是 AI 用起來順不順，這四格問的是你做完看到什麼</strong>。</div>'
+      : '';
+    return '<div class="ana" data-ana-box="'+esc(it.id)+'">'+tip+rows+out+'</div>';
   }
 
   function itemHtml(p,it,idx,total){
