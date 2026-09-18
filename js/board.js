@@ -248,7 +248,7 @@
       '<span class="rvbtn"><button class="mini ghost" id="enterRv">審核</button></span></div>';
   }
 
-  // ── 交件期限：每堂課（週四）結束後 3 天內＝當週日 23:59 ──
+  // ── 交件期限：每堂課（週四）後的星期一 23:59（9/7、9/14、9/21、9/28 都是星期一）──
   var DUE=[
     {n:'01', d:new Date(2026,8, 7,23,59,59)},
     {n:'02', d:new Date(2026,8,14,23,59,59)},
@@ -493,7 +493,7 @@
   function render(){
     document.getElementById('root').innerHTML=
       '<header>'+BRANDS+'<span class="kick">鼎兆元 · AI 種子計劃</span><h1>學習看板</h1>'+
-      '<p class="sub">四堂課（9/3–9/24）＋ 10/07 成果分享。每張卡片<strong>只有本人用自己的密碼才打得開</strong>，別人看得到的就是卡片上這些。一個人可以有不只一件事。不排名、不排序，順序照名冊。<br><strong>交件期限：每堂課結束後 3 天內（當週日晚上）填完並送出審核</strong>——每張卡片上有自己的倒數。</p></header>'+
+      '<p class="sub">四堂課（9/3–9/24）＋ 10/07 成果分享。每張卡片<strong>只有本人用自己的密碼才打得開</strong>，別人看得到的就是卡片上這些。一個人可以有不只一件事。不排名、不排序，順序照名冊。<br><strong>交件期限：每堂課後的星期一，晚上 12 點以前填完並送出審核</strong>——每張卡片上有自己的倒數。</p></header>'+
       '<div id="roBox"></div>'+
       totalHtml()+ pendHtml() +
       slotsHtml()+
