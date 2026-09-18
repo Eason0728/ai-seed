@@ -425,3 +425,6 @@ button.act[disabled]{opacity:.5; cursor:default}
 .lockbar{background:var(--s1-bg); border:1px solid var(--line); border-left:3px solid var(--s1);
   border-radius:3px; padding:.75rem 1rem; font-size:.95rem; color:var(--ink-2); line-height:1.7}
 .lockbar b{color:var(--ink)}
+/* 保留格（例：13:00 郭益誠）：已排定、不能點選 */
+.slot.fixed{background:var(--s1-bg); border-color:var(--s1); cursor:default}
+.slot.fixed span{color:var(--s1); font-weight:700}

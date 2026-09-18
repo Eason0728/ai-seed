@@ -38,6 +38,8 @@ function editLocked_() { return Date.now() >= EDIT_LOCK_.getTime(); }
 
 var SLOT_HEAD  = '10/07時段';
 var SLOT_LOCK_ = new Date('2026-10-06T23:59:59+08:00');
+// 保留格：已經排定的人，不在名冊裡也可以。學員不能選、審核模式也不能把別人排進來——要改只改這裡。
+var SLOT_FIXED_ = { '13:00': '郭益誠' };
 var SLOTS_ = (function () {
   var a = [];
   for (var m = 13 * 60; m < 14 * 60 + 30; m += 5)
@@ -207,7 +209,7 @@ function handleGetAll_(viewerCode, isAdmin) {
     });
   }
   return { ok: true, people: list,
-           slotCfg: { slots: SLOTS_, lock: SLOT_LOCK_.getTime() },
+           slotCfg: { slots: SLOTS_, lock: SLOT_LOCK_.getTime(), fixed: SLOT_FIXED_ },
            editLock: EDIT_LOCK_.getTime() };
 }
 
@@ -540,6 +542,7 @@ function handlePickSlot_(payload) {
   }
   var slot = str_(payload.slot);
   if (slot && SLOTS_.indexOf(slot) < 0) return fail_(p.code, isAdmin, '沒有這個時段');
+  if (slot && SLOT_FIXED_[slot]) return fail_(p.code, isAdmin, slot + ' 已經排定給' + SLOT_FIXED_[slot] + '，換一格');
 
   var sh = sheet_(SH_PEOPLE), col = slotCol_(), last = sh.getLastRow();
   if (last < 2) return { ok: false, error: '名冊是空的' };

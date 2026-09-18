@@ -390,7 +390,9 @@
     if(!SLOTCFG || !S.people.length) return '';
     var locked=slotLocked(), n=0;
     S.people.forEach(function(p){ if(p.slot) n++; });
+    var fixed=SLOTCFG.fixed||{};
     var cells=SLOTCFG.slots.map(function(s){
+      if(fixed[s]) return '<button class="slot fixed" data-slot="'+s+'" title="已排定"><b>'+s+'</b><span>'+esc(fixed[s])+'</span></button>';
       var p=slotHolder(s), cls='slot', lab;
       // 自己那一格靠底色認，不加「（你）」——手機一列三格，名字加三個字就被截掉
       if(p){ cls+=(me && p.id===me.code)?' mine':' taken'; lab=esc(p.name); }
@@ -416,7 +418,7 @@
       '<div class="slotbox">'+
         '<p class="lede">'+(locked
           ? '時段已經鎖定，不能再改。'
-          : '13:00–14:30，每人 5 分鐘，可以線上接進來。<b>點一格「可選」就是你的</b>——會問你是誰、再打你的密碼。'+
+          : '13:00–14:30，每人 5 分鐘，可以線上接進來。'+fixedLine()+'<b>點一格「可選」就是你的</b>——會問你是誰、再打你的密碼。'+
             '<b>10/06 晚上 12 點之後鎖定</b>。')+'</p>'+
         '<p class="lede sub2">5 分鐘做三件事：打開你的資料夾 → 當場用真的資料跑一次 → 講一句「以前要 ＿ 分鐘，現在 ＿ 分鐘」。不用做簡報。</p>'+
         mineLine+
@@ -424,8 +426,18 @@
         miss+
       '</div>';
   }
+  // 「13:00 由郭益誠開始，大家從 13:05 開始選」——保留格一律寫在說明第一句
+  function fixedLine(){
+    var f=(SLOTCFG&&SLOTCFG.fixed)||{}, ks=Object.keys(f).sort();
+    if(!ks.length) return '';
+    var first=SLOTCFG.slots.filter(function(x){ return !f[x]; })[0];
+    return ks.map(function(k){ return k+' 由'+esc(f[k])+'開始'; }).join('、')+
+      (first && first>ks[ks.length-1] ? '，大家從 '+first+' 開始選' : '')+'。';
+  }
   function onSlot(s){
     if(!SLOTCFG) return;
+    var fx=(SLOTCFG.fixed||{})[s];
+    if(fx){ say(s+' 已經排定', s+' 由'+esc(fx)+'開始，這一格不開放選。挑一格寫著「可選」的。'); return; }
     var holder=slotHolder(s), locked=slotLocked();
     if(reviewMode && admin){                 // Eason：隨時可以排、可以移出
       if(holder){
