@@ -27,6 +27,18 @@ var I_HEAD = ['件ID','學員代號','題目',
               '審核狀態','退回原因','退回次數','更新時間'];
 var L_HEAD = ['時間','學員代號','姓名','件ID','動作','摘要'];
 
+/* 10/07 成果分享的報告時段：13:00–14:30，每人 5 分鐘，一格只能一個人。
+ * 存在「學員」表的「10/07時段」欄——舊表沒有這一欄，第一次有人選時自動補在最右邊。
+ * 過了 SLOT_LOCK_ 學員就不能自己改，只剩 Eason（審核模式）能排。 */
+var SLOT_HEAD  = '10/07時段';
+var SLOT_LOCK_ = new Date('2026-10-06T23:59:59+08:00');
+var SLOTS_ = (function () {
+  var a = [];
+  for (var m = 13 * 60; m < 14 * 60 + 30; m += 5)
+    a.push(('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + m % 60).slice(-2));
+  return a;
+})();
+
 /* ─────────── 設定 ─────────── */
 
 function setup() {
@@ -108,6 +120,7 @@ function doPost(e) {
     if (a === 'setSess')    return respond_(handleSetSess_(payload));
     if (a === 'undoReject') return respond_(handleUndoReject_(payload));
     if (a === 'log')        return respond_(handleLog_(payload));
+    if (a === 'pickSlot')   return respond_(handlePickSlot_(payload));
     return respond_({ ok: false, error: '不支援的操作：' + a });
   } finally { lock.releaseLock(); }
 }
@@ -160,6 +173,7 @@ function handleGetAll_(viewerCode, isAdmin) {
       id: String(p['代號']),
       name: String(p['姓名'] || ''),
       sess: [tf_(p['第01堂']), tf_(p['第02堂']), tf_(p['第03堂']), tf_(p['第04堂']), tf_(p['10/07分享'])],
+      slot: slotStr_(p[SLOT_HEAD]),   // 公開：誰排哪一格，大家都要看得到才不會撞
       items: []
     };
   });
@@ -186,7 +200,8 @@ function handleGetAll_(viewerCode, isAdmin) {
       p.items = p.items.map(pubItem_);
     });
   }
-  return { ok: true, people: list };
+  return { ok: true, people: list,
+           slotCfg: { slots: SLOTS_, lock: SLOT_LOCK_.getTime() } };
 }
 
 function blankItem_(code) {
@@ -202,6 +217,14 @@ function dstr_(v) {
   if (!v) return '';
   if (Object.prototype.toString.call(v) === '[object Date]')
     return Utilities.formatDate(v, 'Asia/Taipei', 'yyyy-MM-dd');
+  return String(v).trim();
+}
+/** 時段一律回 "13:05" 這種字串。程式寫進去時是純文字；
+ *  但如果有人直接在試算表打 13:05，Google 會把它變成時間值，這裡轉回字串。 */
+function slotStr_(v) {
+  if (!v) return '';
+  if (Object.prototype.toString.call(v) === '[object Date]')
+    return Utilities.formatDate(v, ss_().getSpreadsheetTimeZone(), 'HH:mm');
   return String(v).trim();
 }
 
@@ -472,4 +495,62 @@ function handleSetSess_(payload) {
   sh.getRange(p.row, col).setValue(!now);
   log_(p.code, p.name, '', '勾進度', P_HEAD[col - 1] + (now ? ' 取消' : ' 打勾'));
   return handleGetAll_(null, true);
+}
+
+/* ─────────── 10/07 報告時段 ─────────── */
+
+/** 「10/07時段」在第幾欄；舊表沒有就補在最右邊，整欄設成純文字（不然 13:05 會被轉成時間值） */
+function slotCol_() {
+  var sh = sheet_(SH_PEOPLE);
+  var lastC = Math.max(sh.getLastColumn(), 1);
+  var head = sh.getRange(1, 1, 1, lastC).getValues()[0];
+  for (var i = 0; i < head.length; i++) if (String(head[i]).trim() === SLOT_HEAD) return i + 1;
+  var col = lastC + 1;
+  if (col > sh.getMaxColumns()) sh.insertColumnAfter(lastC);
+  sh.getRange(1, col).setValue(SLOT_HEAD).setFontWeight('bold');
+  sh.getRange(2, col, Math.max(sh.getMaxRows() - 1, 1), 1).setNumberFormat('@');
+  return col;
+}
+
+/** 選／換／取消時段。slot 空字串＝取消。
+ *  學員：帶自己的 code＋pass，只能排自己，10/06 23:59 之後鎖住。
+ *  Eason：帶 admin＋target，隨時可以排任何人，也可以把人移出某一格。
+ *  失敗時一樣回最新的 people——前端拿來重畫，才看得到那一格是被誰先選走的。 */
+function handlePickSlot_(payload) {
+  var isAdmin = adminOk_(payload), p;
+  if (isAdmin) {
+    p = person_(payload.target);
+    if (!p) return { ok: false, error: '找不到這個代號' };
+  } else {
+    var a = auth_(payload); if (!a.ok) return a;
+    p = a.person;
+    if (Date.now() > SLOT_LOCK_.getTime())
+      return fail_(p.code, false, '時段 10/06 晚上 12 點已經鎖定，不能再改');
+  }
+  var slot = str_(payload.slot);
+  if (slot && SLOTS_.indexOf(slot) < 0) return fail_(p.code, isAdmin, '沒有這個時段');
+
+  var sh = sheet_(SH_PEOPLE), col = slotCol_(), last = sh.getLastRow();
+  if (last < 2) return { ok: false, error: '名冊是空的' };
+  var codes = sh.getRange(2, 1, last - 1, 1).getValues();
+  var vals  = sh.getRange(2, col, last - 1, 1).getValues();
+  var prev = '';
+  for (var i = 0; i < codes.length; i++) {
+    var c = str_(codes[i][0]), v = slotStr_(vals[i][0]);
+    if (c === p.code) { prev = v; continue; }
+    if (slot && v === slot) {
+      var r = fail_(p.code, isAdmin, slot + ' 剛剛被別人選走了，換一格');
+      r.taken = true; return r;
+    }
+  }
+  // 不寫交件紀錄——那張表只放送審相關的事（2026-09-18 Eason 拍板），時段只記最後選了哪一格
+  if (prev !== slot) sh.getRange(p.row, col).setNumberFormat('@').setValue(slot);
+  var out = handleGetAll_(isAdmin ? null : p.code, isAdmin);
+  if (!isAdmin) out.isDefault = !!p.isDefault;
+  return out;
+}
+
+function fail_(code, isAdmin, msg) {
+  var r = handleGetAll_(isAdmin ? null : code, isAdmin);
+  r.ok = false; r.error = msg; return r;
 }

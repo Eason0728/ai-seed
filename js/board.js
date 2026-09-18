@@ -370,12 +370,133 @@
       body+'</div></details>';
   }
 
+  /* ─────────── 10/07 報告時段 ───────────
+     13:00–14:30 每人 5 分鐘，一格一人。時段清單與鎖定時間都以後端為準（SLOTCFG，api() 收到就更新），
+     前端不自己寫一份，免得兩邊對不上。誰排哪一格是公開的——大家要看得到才不會撞；
+     「還沒選的有誰」只在審核模式出現，不在全班面前點名。 */
+  var SLOTCFG=null;
+  function slotLocked(){ return !!SLOTCFG && Date.now()>SLOTCFG.lock; }
+  function slotHolder(s){ for(var i=0;i<S.people.length;i++) if(S.people[i].slot===s) return S.people[i]; return null; }
+  function slotsHtml(){
+    if(!SLOTCFG || !S.people.length) return '';
+    var locked=slotLocked(), n=0;
+    S.people.forEach(function(p){ if(p.slot) n++; });
+    var cells=SLOTCFG.slots.map(function(s){
+      var p=slotHolder(s), cls='slot', lab;
+      // 自己那一格靠底色認，不加「（你）」——手機一列三格，名字加三個字就被截掉
+      if(p){ cls+=(me && p.id===me.code)?' mine':' taken'; lab=esc(p.name); }
+      else { cls+=' open'; lab=locked?'空':'可選'; }
+      if(locked && !reviewMode) cls+=' lockd';
+      return '<button class="'+cls+'" data-slot="'+s+'"><b>'+s+'</b><span>'+lab+'</span></button>';
+    }).join('');
+    var mineLine='';
+    if(me){
+      var mp=find(me.code);
+      mineLine='<p class="slotme">'+(mp&&mp.slot
+        ? '你的時段：<b>10/07 '+mp.slot+'</b>'+(locked?'':'　想換就點另一格「可選」，不要了就點自己那一格。')
+        : '你還沒選時段——點一格「可選」。')+'</p>';
+    }
+    var miss='';
+    if(reviewMode){
+      var left=S.people.filter(function(p){ return !p.slot; });
+      miss='<p class="slotmiss"><b>還沒選的 '+left.length+' 位</b>（只有審核模式看得到）：'+
+        (left.length?left.map(function(p){ return esc(p.name); }).join('、'):'全部都選好了')+
+        '<br>點空的一格可以幫人排進去，點有人的一格可以把他移出來。鎖定之後你還是改得動。</p>';
+    }
+    return '<div class="sechd"><h2>10/07 報告時段</h2><span class="hint">已選 '+n+'／'+S.people.length+'</span></div>'+
+      '<div class="slotbox">'+
+        '<p class="lede">'+(locked
+          ? '時段已經鎖定，不能再改。'
+          : '13:00–14:30，每人 5 分鐘，可以線上接進來。<b>點一格「可選」就是你的</b>——會問你是誰、再打你的密碼。'+
+            '<b>10/06 晚上 12 點之後鎖定</b>。')+'</p>'+
+        '<p class="lede sub2">5 分鐘做三件事：打開你的資料夾 → 當場用真的資料跑一次 → 講一句「以前要 ＿ 分鐘，現在 ＿ 分鐘」。不用做簡報。</p>'+
+        mineLine+
+        '<div class="slots">'+cells+'</div>'+
+        miss+
+      '</div>';
+  }
+  function onSlot(s){
+    if(!SLOTCFG) return;
+    var holder=slotHolder(s), locked=slotLocked();
+    if(reviewMode && admin){                 // Eason：隨時可以排、可以移出
+      if(holder){
+        ask({title:'把「'+holder.name+'」移出 '+s+'？',
+             desc:'這一格會空出來。他要自己重選，或你再幫他排別格。', ok:'移出', danger:true, hold:true},
+          function(v,x,ctl){ if(v===null) return; slotCall(ctl,{target:holder.id, slot:''}, s); });
+      } else {
+        var opts=S.people.map(function(p){
+          return '<option value="'+esc(p.id)+'">'+esc(p.name)+(p.slot?'（目前 '+p.slot+'，會換過來）':'')+'</option>'; }).join('');
+        ask({title:'把誰排進 '+s+'？',
+             desc:'<select class="mysel"><option value="">— 選一個人 —</option>'+opts+'</select>',
+             ok:'排進去', hold:true},
+          function(v,x,ctl){ if(v===null) return;
+            if(!x.select){ ctl.err('還沒選人'); return; }
+            slotCall(ctl,{target:x.select, slot:s}, s); });
+      }
+      return;
+    }
+    if(holder){
+      if(me && holder.id===me.code){
+        if(locked){ say('時段已經鎖定','10/06 晚上 12 點之後不能再改。'); return; }
+        ask({title:'不要 '+s+' 了？', desc:'這一格會空出來給別人選，你之後還是要再選一格。',
+             ok:'放掉這一格', danger:true, hold:true},
+          function(v,x,ctl){ if(v===null) return; slotCall(ctl,{slot:''}, s); });
+      } else say(s+' 已經有人', esc(holder.name)+' 選了這一格。挑一格寫著「可選」的。');
+      return;
+    }
+    if(locked){ say('時段已經鎖定','10/06 晚上 12 點之後不能再選。'); return; }
+    if(dirty){ say('先存檔','你的卡片還有沒存的變更。先按「完成並存檔」，再回來選時段。'); return; }
+    if(me){
+      var mp=find(me.code), prev=mp&&mp.slot;
+      ask({title: prev?('從 '+prev+' 換到 '+s+'？'):('選 10/07 '+s+'？'),
+           desc: prev?(prev+' 會空出來給別人。'):'這一格就是你的，5 分鐘。',
+           ok: prev?'換過去':'就這一格', hold:true},
+        function(v,x,ctl){ if(v===null) return; slotCall(ctl,{slot:s}, s); });
+      return;
+    }
+    askSlotLogin(s,'','');
+  }
+  // 還沒登入的人點空格：在同一個視窗裡選名字＋打密碼，不用先跑去點自己的卡片
+  function askSlotLogin(s, pick, err){
+    var opts=S.people.map(function(p){
+      return '<option value="'+esc(p.id)+'"'+(p.id===pick?' selected':'')+'>'+esc(p.name)+
+        (p.slot?'（已選 '+p.slot+'，會換過來）':'')+'</option>'; }).join('');
+    ask({title:'選 10/07 '+s,
+         desc:'你是誰？<select class="mysel"><option value="">— 選你的名字 —</option>'+opts+'</select>'+
+              '<br>再打你的四位數密碼（還沒改過就是 0000）。',
+         input:'', ph:'四位數密碼', ok:'就這一格', err:err||'', hold:true},
+      function(v,x,ctl){
+        if(v===null) return;
+        var code=x.select, pass=String(v).trim();
+        if(!code){ ctl.err('先選你的名字'); return; }
+        if(!/^[0-9]{4}$/.test(pass)){ ctl.err('密碼是四位數字'); return; }
+        slotCall(ctl,{code:code, pass:pass, slot:s}, s, {code:code, pass:pass});
+      });
+  }
+  function slotCall(ctl, extra, s, login){
+    ctl.busy('處理中…');
+    api('pickSlot', extra).then(function(d){
+      ctl.close();
+      if(login){ me=login; admin=null; reviewMode=false; }
+      S={people:d.people||[], rev:(S.rev||0)+1}; migrate(); render();
+      var who=extra.target?find(extra.target):(me?find(me.code):null), nm=who?esc(who.name):'';
+      if(!extra.slot) say('已經空出來', (extra.target?nm+' 的 ':'')+s+' 現在可以給別人選了。');
+      else say('排好了', (extra.target?nm:'你')+'在 <b>10/07 '+s+'</b> 報告，5 分鐘。'+
+        (d.isDefault?'<br><br>另外，你現在用的還是預設密碼 <b>0000</b>，別人猜得到——點你自己的卡片，按「改密碼」換一組。':''));
+    }).catch(function(e){
+      if(e && e.people){ S={people:e.people, rev:(S.rev||0)+1}; migrate(); render(); }
+      if(e && e.taken){ ctl.close(); say('這一格剛被選走', errMsg(e)); return; }
+      ctl.err(errMsg(e));
+    });
+  }
+
   function render(){
     document.getElementById('root').innerHTML=
       '<header>'+BRANDS+'<span class="kick">鼎兆元 · AI 種子計劃</span><h1>學習看板</h1>'+
       '<p class="sub">四堂課（9/3–9/24）＋ 10/07 成果分享。每張卡片<strong>只有本人用自己的密碼才打得開</strong>，別人看得到的就是卡片上這些。一個人可以有不只一件事。不排名、不排序，順序照名冊。<br><strong>交件期限：每堂課結束後 3 天內（當週日晚上）填完並送出審核</strong>——每張卡片上有自己的倒數。</p></header>'+
       '<div id="roBox"></div>'+
       totalHtml()+ pendHtml() +
+      slotsHtml()+
       '<div class="sechd"><h2>每個人每月省下</h2><span class="hint">'+
         (S.people.length?'點自己的卡片，用密碼進去填。填完先存檔，要交件按「送出審核」':'')+'</span></div>'+
       peopleHtml()+
@@ -918,8 +1039,9 @@
   });
 
   document.addEventListener('click', function(e){
-    var t=e.target && e.target.closest ? e.target.closest('[data-open],[data-sess],[data-del],[data-delitem],[data-submit],[data-saveitem],[data-approve],[data-reject],[data-undorej],[data-withdraw],[data-unapprove]') : null;
+    var t=e.target && e.target.closest ? e.target.closest('[data-open],[data-sess],[data-del],[data-delitem],[data-submit],[data-saveitem],[data-approve],[data-reject],[data-undorej],[data-withdraw],[data-unapprove],[data-slot]') : null;
     if(!t) return;
+    if(t.hasAttribute('data-slot')){ onSlot(t.getAttribute('data-slot')); return; }
     if(t.hasAttribute('data-open')){
       var pid=t.getAttribute('data-open');
       if(admin || (me && me.code===pid)) openSheet(pid);
@@ -1031,7 +1153,7 @@
     return fetch(API, opt)
       .then(function(r){ clearTimeout(timer); return r.json(); },
             function(e){ clearTimeout(timer); throw e; })
-      .then(function(d){ if(!d.ok) throw d; return d; });
+      .then(function(d){ if(d && d.slotCfg) SLOTCFG=d.slotCfg; if(!d.ok) throw d; return d; });
   }
 
   function act(action, extra, reopen){
