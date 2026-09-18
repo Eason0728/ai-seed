@@ -30,6 +30,12 @@ var L_HEAD = ['時間','學員代號','姓名','件ID','動作','摘要'];
 /* 10/07 成果分享的報告時段：13:00–14:30，每人 5 分鐘，一格只能一個人。
  * 存在「學員」表的「10/07時段」欄——舊表沒有這一欄，第一次有人選時自動補在最右邊。
  * 過了 SLOT_LOCK_ 學員就不能自己改，只剩 Eason（審核模式）能排。 */
+/* 9/29 00:00 起看板鎖定：學員不能再存檔、刪除、送審、撤回（第 04 堂 9/28 23:59 截止，接著就鎖）。
+ * Eason 審核模式照常可以改、審。報告時段另外算，選到 SLOT_LOCK_。 */
+var EDIT_LOCK_ = new Date('2026-09-29T00:00:00+08:00');
+var EDIT_LOCK_MSG = '看板 9/29 起已經鎖定，不能再修改';
+function editLocked_() { return Date.now() >= EDIT_LOCK_.getTime(); }
+
 var SLOT_HEAD  = '10/07時段';
 var SLOT_LOCK_ = new Date('2026-10-06T23:59:59+08:00');
 var SLOTS_ = (function () {
@@ -201,7 +207,8 @@ function handleGetAll_(viewerCode, isAdmin) {
     });
   }
   return { ok: true, people: list,
-           slotCfg: { slots: SLOTS_, lock: SLOT_LOCK_.getTime() } };
+           slotCfg: { slots: SLOTS_, lock: SLOT_LOCK_.getTime() },
+           editLock: EDIT_LOCK_.getTime() };
 }
 
 function blankItem_(code) {
@@ -318,6 +325,7 @@ function handleSaveItem_(payload) {
   } else {
     var a = auth_(payload); if (!a.ok) return a;
     if (String(it.id).indexOf(a.person.code) !== 0) return { ok: false, error: '不能改別人的資料' };
+    if (editLocked_()) return fail_(a.person.code, false, EDIT_LOCK_MSG);
     code = a.person.code; name = a.person.name; viewer = code;
   }
   var row = itemRow_(it.id);
@@ -347,6 +355,7 @@ function handleDeleteItem_(payload) {
   } else {
     var a = auth_(payload); if (!a.ok) return a;
     if (id.indexOf(a.person.code) !== 0) return { ok: false, error: '不能刪別人的資料' };
+    if (editLocked_()) return fail_(a.person.code, false, EDIT_LOCK_MSG);
     code = a.person.code; name = a.person.name;
   }
   var row = itemRow_(id);
@@ -372,6 +381,7 @@ function handleResetPass_(payload) {
 
 function handleSubmit_(payload) {
   var a = auth_(payload); if (!a.ok) return a;
+  if (editLocked_()) return fail_(a.person.code, false, EDIT_LOCK_MSG);
   var row = itemRow_(payload.itemId);
   if (!row) return { ok: false, error: '找不到這一件' };
   if (String(payload.itemId).indexOf(a.person.code) !== 0) return { ok: false, error: '不能改別人的資料' };
@@ -387,6 +397,7 @@ function handleSubmit_(payload) {
 
 function handleWithdraw_(payload) {
   var a = auth_(payload); if (!a.ok) return a;
+  if (editLocked_()) return fail_(a.person.code, false, EDIT_LOCK_MSG);
   var row = itemRow_(payload.itemId);
   if (!row) return { ok: false, error: '找不到這一件' };
   if (String(payload.itemId).indexOf(a.person.code) !== 0) return { ok: false, error: '不能改別人的資料' };

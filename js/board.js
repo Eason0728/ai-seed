@@ -238,7 +238,7 @@
     if(me){
       var mp=find(me.code);
       return '<div class="pend" style="border-left-color:var(--s2)">'+
-        '你是 <b>'+esc((mp&&mp.name)||me.code)+'</b>　·　只能改自己那一張'+
+        '你是 <b>'+esc((mp&&mp.name)||me.code)+'</b>　·　'+(editLocked()?'看板已鎖定，只能看自己那一張':'只能改自己那一張')+
         '<span class="rvbtn"><button class="mini ghost" id="logoutBtn">換人／登出</button></span></div>';
     }
     if(!np && !nr) return '<div class="pend" style="background:var(--surface);border-left-color:var(--line-2)">'+
@@ -272,6 +272,10 @@
 
   function dueState(p){
     var sess=p.sess||[], k=nextLesson(p);
+    if(editLocked()){   // 已經不能交了，不要再叫人補交
+      if(sess[4]) return {cls:'ok', text:'四堂＋10/07 分享 全部完成'};
+      return {cls:'', pre:'10/07 成果分享', ts:SHOW.getTime()};
+    }
     if(k===-1){
       if(sess[4]) return {cls:'ok', text:'四堂＋10/07 分享 全部完成'};
       return {cls:'', pre:'10/07 成果分享', ts:SHOW.getTime()};
@@ -375,6 +379,11 @@
      前端不自己寫一份，免得兩邊對不上。誰排哪一格是公開的——大家要看得到才不會撞；
      「還沒選的有誰」只在審核模式出現，不在全班面前點名。 */
   var SLOTCFG=null;
+  // 9/29 00:00 起看板鎖定：學員卡片只能看。時間以後端為準（api() 收到 editLock 就更新）。
+  // 審核模式不受影響。
+  var EDITLOCK=null;
+  function editLocked(){ return !!EDITLOCK && Date.now()>=EDITLOCK; }
+  function boardLocked(){ return editLocked() && !reviewMode; }
   function slotLocked(){ return !!SLOTCFG && Date.now()>SLOTCFG.lock; }
   function slotHolder(s){ for(var i=0;i<S.people.length;i++) if(S.people[i].slot===s) return S.people[i]; return null; }
   function slotsHtml(){
@@ -493,12 +502,12 @@
   function render(){
     document.getElementById('root').innerHTML=
       '<header>'+BRANDS+'<span class="kick">鼎兆元 · AI 種子計劃</span><h1>學習看板</h1>'+
-      '<p class="sub">四堂課（9/3–9/24）＋ 10/07 成果分享。每張卡片<strong>只有本人用自己的密碼才打得開</strong>，別人看得到的就是卡片上這些。一個人可以有不只一件事。不排名、不排序，順序照名冊。<br><strong>交件期限：每堂課後的星期一，晚上 12 點以前填完並送出審核</strong>——每張卡片上有自己的倒數。</p></header>'+
+      '<p class="sub">四堂課（9/3–9/24）＋ 10/07 成果分享。每張卡片<strong>只有本人用自己的密碼才打得開</strong>，別人看得到的就是卡片上這些。一個人可以有不只一件事。不排名、不排序，順序照名冊。<br><strong>交件期限：每堂課後的星期一，晚上 12 點以前填完並送出審核</strong>——每張卡片上有自己的倒數。<br><strong>9/29 起看板鎖定，內容不能再改</strong>（報告時段可以選到 10/06）。</p></header>'+
       '<div id="roBox"></div>'+
       totalHtml()+ pendHtml() +
       slotsHtml()+
       '<div class="sechd"><h2>每個人每月省下</h2><span class="hint">'+
-        (S.people.length?'點自己的卡片，用密碼進去填。填完先存檔，要交件按「送出審核」':'')+'</span></div>'+
+        (!S.people.length?'':editLocked()?'看板已鎖定，點自己的卡片只能看':'點自己的卡片，用密碼進去填。填完先存檔，要交件按「送出審核」')+'</span></div>'+
       peopleHtml()+
       needsHtml()+
       '<div class="bar">'+
@@ -661,7 +670,7 @@
   }
 
   // 學員在 pending／approved 時不能改；審核模式下 Eason 一律可改
-  function locked(it){ return !reviewMode && (it.review==='pending' || it.review==='approved'); }
+  function locked(it){ return !reviewMode && (editLocked() || it.review==='pending' || it.review==='approved'); }
 
   function itemFootHtml(p,it){
     var d='data-id="'+esc(p.id)+'" data-item="'+esc(it.id)+'"';
@@ -684,6 +693,10 @@
              '<span class="msg">學員還沒送審，或你剛按過「收回通過」——可以直接通過，'+
              '也可以寫原因駁回，他才知道要改什麼</span></div>';
     }
+    if(editLocked())
+      return '<div class="ifoot"><span class="msg">看板已鎖定，這一件不能再改。目前：<b>'+
+             (it.review==='approved'?'已通過':it.review==='pending'?'已送出，等 Eason 審核':'沒有送出審核')+
+             '</b></span></div>';
     if(it.review==='pending')
       return '<div class="ifoot"><button class="mini ghost" data-withdraw="1" '+d+'>撤回修改</button>'+
              '<span class="msg">這是<b>'+esc(submitLesson(p))+'</b>的交件，已送出，等 Eason 審核。'+
@@ -788,7 +801,8 @@
       return '<span class="lb">這個人每月共省下</span>'+
         '<span class="sumline"><span class="v pend">'+fmt(all)+'</span>'+
         '<span class="u">分鐘 / 月　·　'+fAll+'/'+n+' 件已填完</span></span>'+
-        '<span class="subnote">還沒通過審核，<strong>先不算進全班總數</strong>——送出審核、Eason 通過之後才會計入。</span>';
+        '<span class="subnote">還沒通過審核，<strong>先不算進全班總數</strong>——'+
+        (editLocked()?'看板已鎖定，沒有送出的就不會再計入。':'送出審核、Eason 通過之後才會計入。')+'</span>';
     if(all!==ok)    // 有通過的，也有還沒通過的
       return '<span class="lb">這個人每月共省下</span>'+
         '<span class="sumline"><span class="v">'+fmt(ok)+'</span>'+
@@ -814,11 +828,13 @@
               (reviewMode?'':' disabled')+' title="'+(k<4?('第 '+l+' 堂交件通過'):'10/07 成果分享（現場或線上都算）')+'">'+l+'</button>';
           }).join('')+'</span></div>'+
         '</div>'+
+        (boardLocked() ? '<div class="lockbar"><b>看板 9/29 起鎖定，卡片只能看、不能再改。</b>'+
+          '使用期不用回來填任何東西——你用過的證據就在你的資料夾裡，10/07 打開它就好。</div>' : '')+
         p.items.map(function(it,i){ return itemHtml(p,it,i,n); }).join('')+
-        '<button class="additem" id="addItem" data-id="'+esc(p.id)+'">＋ 再加一件事</button>'+
+        (boardLocked() ? '' : '<button class="additem" id="addItem" data-id="'+esc(p.id)+'">＋ 再加一件事</button>')+
       '</div>'+
       '<div class="sfoot">'+
-        (me && me.code===p.id ? '<button class="act" id="submitAll">送出審核</button>' : '')+
+        (me && me.code===p.id && !boardLocked() ? '<button class="act" id="submitAll">送出審核</button>' : '')+
         (admin ? '<button class="act" id="doneBtn">完成並存檔</button>' : '')+
         (me && me.code===p.id ? '<button class="act ghost" id="pwBtn">改密碼</button>' : '')+
         (admin ? '<button class="act ghost" id="rsBtn">重設密碼為 0000</button>' : '')+
@@ -1153,7 +1169,8 @@
     return fetch(API, opt)
       .then(function(r){ clearTimeout(timer); return r.json(); },
             function(e){ clearTimeout(timer); throw e; })
-      .then(function(d){ if(d && d.slotCfg) SLOTCFG=d.slotCfg; if(!d.ok) throw d; return d; });
+      .then(function(d){ if(d && d.slotCfg) SLOTCFG=d.slotCfg; if(d && d.editLock) EDITLOCK=d.editLock;
+        if(!d.ok) throw d; return d; });
   }
 
   function act(action, extra, reopen){
@@ -1182,6 +1199,7 @@
   function saveNow(cb){
     if(saving){ cb(false,'存檔中，等一下','warn'); return; }
     if(!me && !admin){ cb(false,'先點自己的卡片登入','warn'); return; }
+    if(boardLocked()){ cb(false,'看板 9/29 起已經鎖定，不能再修改','warn'); return; }
     if(!openId){ cb(false,'沒有開啟中的人','warn'); return; }
     var p=find(openId);
     if(!p){ cb(false,'找不到這個人','warn'); return; }
@@ -1212,6 +1230,8 @@
     var b=document.getElementById('save'); if(b) b.disabled=true;
     var a=document.getElementById('add'); if(a) a.disabled=true;
     var box=document.getElementById('roBox');
+    if(box && editLocked()){ box.innerHTML='<div class="ro"><strong>看板 9/29 起鎖定，卡片只能看、不能再改。</strong><br>'+
+      '「10/07 報告時段」那一區還可以選，選到 10/06 晚上 12 點。</div>'; return; }
     if(box) box.innerHTML='<div class="ro"><strong>要填自己那一張，直接點你自己的卡片。</strong><br>'+
       '會跳出來問密碼——<strong>第一次用的是預設的 0000</strong>，進去之後按「改密碼」換掉。<br>'+
       '<strong>別人的卡片打不開</strong>，要他本人的密碼才進得去。</div>';

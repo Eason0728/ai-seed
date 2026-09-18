@@ -420,3 +420,8 @@ button.act[disabled]{opacity:.5; cursor:default}
 .slotmiss{margin-top:.9rem; padding-top:.75rem; border-top:1px solid var(--line);
   font-size:.9rem; color:var(--ink-3); line-height:1.7}
 .slotmiss b{color:var(--ink-2)}
+
+/* 9/29 起看板鎖定：細項表最上面的說明 */
+.lockbar{background:var(--s1-bg); border:1px solid var(--line); border-left:3px solid var(--s1);
+  border-radius:3px; padding:.75rem 1rem; font-size:.95rem; color:var(--ink-2); line-height:1.7}
+.lockbar b{color:var(--ink)}
