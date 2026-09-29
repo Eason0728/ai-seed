@@ -274,7 +274,13 @@
     var sess=p.sess||[], k=nextLesson(p);
     if(editLocked()){   // 已經不能交了，不要再叫人補交
       if(sess[4]) return {cls:'ok', text:'四堂＋10/07 分享 全部完成'};
-      return {cls:'', pre:'10/07 成果分享', ts:SHOW.getTime()};
+      // 10/07 的倒數只給四堂全亮的人。鎖定後原本每個人都看得到倒數，
+      // 沒過完四堂的人會以為自己有資格上台——改成照實顯示他停在幾堂，
+      // 而且不寫「下一關第幾堂」：都鎖定了，講下一關只會讓人去問能不能補交。
+      if(k===-1) return {cls:'', pre:'10/07 成果分享', ts:SHOW.getTime()};
+      var doneL=0; for(var di=0;di<4;di++) if(sess[di]) doneL++;
+      if(pendingCount(p)>0) return {cls:'pend', text:'四堂完成 '+doneL+'/4　有件等審核'};
+      return {cls:'', text:'四堂完成 '+doneL+'/4'};
     }
     if(k===-1){
       if(sess[4]) return {cls:'ok', text:'四堂＋10/07 分享 全部完成'};
