@@ -279,8 +279,9 @@
       // 而且不寫「下一關第幾堂」：都鎖定了，講下一關只會讓人去問能不能補交。
       if(k===-1) return {cls:'', pre:'10/07 成果分享', ts:SHOW.getTime()};
       var doneL=0; for(var di=0;di<4;di++) if(sess[di]) doneL++;
-      if(pendingCount(p)>0) return {cls:'pend', text:'四堂完成 '+doneL+'/4　有件等審核'};
-      return {cls:'', text:'四堂完成 '+doneL+'/4'};
+      // 未完成一律紅字：這張卡要一眼看得出誰還沒拿到 10/07 的資格。
+      if(pendingCount(p)>0) return {cls:'late', text:'四堂完成 '+doneL+'/4　有件等審核'};
+      return {cls:'late', text:'四堂完成 '+doneL+'/4'};
     }
     if(k===-1){
       if(sess[4]) return {cls:'ok', text:'四堂＋10/07 分享 全部完成'};
